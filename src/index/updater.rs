@@ -6,6 +6,7 @@ use {
     broadcast::{self, error::TryRecvError},
     mpsc::{self},
   },
+  entry::LockTimeOrdinalEntry
 };
 
 mod inscription_updater;
@@ -645,6 +646,71 @@ impl Updater<'_> {
         )?;
       }
 
+      //  CAT-21 😺 - START: index cats (and more)
+
+      let lock_time = tx.lock_time.to_consensus_u32();
+      if lock_time > 0 && lock_time <= 10000 {
+
+          // Get the total input value by iterating through both `tx.input` and `input_utxo_entries`
+          let total_input_value = tx.input.iter().enumerate().map(|(index, _txin)| {
+            // Get the corresponding ParsedUtxoEntry based on the input index
+            let entry = &input_utxo_entries[index];
+
+            // Return the total value of the UTXO entry
+            entry.total_value()
+          }).sum::<u64>();
+
+          let total_output_value = tx.output.iter().map(|txout| txout.value).sum::<u64>();
+
+          // Calculate the fee
+          let fee = total_input_value - total_output_value;
+
+          // Open a new write transaction
+          let mut wtx = self.index.begin_write()?;
+
+          // Get the next number for this lock_time
+          let next_lock_time_number = get_next_lock_time_number(&mut wtx, lock_time)?;
+
+          // According to the first-in, first-out (FIFO) rule,
+          // the first sat of the first output corresponds to the first sat of the first input.
+          let sat = orig_input_sat_ranges
+            .as_ref()
+            .and_then(|ranges| ranges.front().map(|(start, _)| *start))
+            .unwrap_or(0); // Use 0 if no input sat range is found (should never happen)
+
+          let first_output = &tx.output[0];
+          let value = first_output.value;
+          let size = tx.size().try_into().unwrap();
+          let weight = tx.weight().into();
+
+          if lock_time == 21 {
+            println!("Meow! 😺 {} {} {}", next_lock_time_number, tx.txid(), sat);
+          }
+
+          let lock_time_ordinal_entry: LockTimeOrdinalEntry = LockTimeOrdinalEntry {
+              transaction_id: tx.txid(),
+              lock_time,
+              number: next_lock_time_number,
+              block_height: self.height,
+              block_time: block.header.time,
+              fee,
+              size,
+              weight,
+              value,
+              sat
+          };
+
+          // Open the table and insert the new entry
+          {
+            let mut lock_time_ordinal_table = wtx.open_table(LOCKTIME_ORDINAL_TABLE)?;
+            lock_time_ordinal_table.insert(&lock_time_ordinal_entry.transaction_id.store(), lock_time_ordinal_entry.store())?;
+          }
+
+          wtx.commit()?;
+      }
+
+      // CAT-21 😺 - END
+
       for (vout, output_utxo_entry) in output_utxo_entries.into_iter().enumerate() {
         let vout = u32::try_from(vout).unwrap();
         utxo_cache.insert(OutPoint { txid: *txid, vout }, output_utxo_entry);
@@ -870,4 +936,26 @@ impl Updater<'_> {
 
     Ok(())
   }
+}
+
+
+fn get_next_lock_time_number(
+  wtx: &mut WriteTransaction,
+  lock_time: u32
+) -> Result<u32, Error> {
+  let mut lock_time_to_number = wtx.open_table(LOCK_TIME_TO_NUMBER)?;
+
+  // Get the current lock_time_number from the table
+  let current_number = lock_time_to_number
+      .get(&lock_time)?
+      .map(|entry| entry.value()) // Get the current value
+      .unwrap_or(0); // If not present, start with 0
+
+  // To keep next_number as 0 or increment it otherwise (counting should start 0, which is cooler)
+  let next_number = if current_number == 0 { 0 } else { current_number + 1 };
+
+  // Store the incremented number back into the table
+  lock_time_to_number.insert(&lock_time, &next_number)?;
+
+  Ok(next_number)
 }

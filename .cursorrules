@@ -14,7 +14,7 @@ You are an expert Rust developer with deep knowledge of Bitcoin and the Ordinals
 - Focused on minimizing changes to the core `ord` client to maintain compatibility.
 
 - **nLockTime Handling**:
-  - Track transactions with nLockTime values between 0 and a predefined upper limit (e.g., 10000).
+  - Track transactions with nLockTime values between 0 and a predefined upper limit LOCK_TIME_THRESHOLD (e.g., 1000).
   - The satoshis / sats are called LockTimeOrdinals ("LTO").
   - A LockTimeOrdinal is always created / minted for the the first satoshi of the first output of the transaction.
   - LTOs are tied to the first sat of the first output, ignoring whether it is an OP_RETURN output,

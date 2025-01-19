@@ -12,6 +12,8 @@ use {
 mod inscription_updater;
 mod rune_updater;
 
+const LOCK_TIME_THRESHOLD: u32 = 1000;
+
 pub(crate) struct BlockData {
   pub(crate) header: Header,
   pub(crate) txdata: Vec<(Transaction, Txid)>,
@@ -649,7 +651,7 @@ impl Updater<'_> {
       //  CAT-21 😺 - START: index cats (and more)
 
       let lock_time = tx.lock_time.to_consensus_u32();
-      if lock_time > 0 && lock_time <= 10000 {
+      if lock_time > 0 && lock_time <= LOCK_TIME_THRESHOLD {
 
           // Get the total input value by iterating through both `tx.input` and `input_utxo_entries`
           let total_input_value = tx.input.iter().enumerate().map(|(index, _txin)| {
@@ -660,7 +662,7 @@ impl Updater<'_> {
             entry.total_value()
           }).sum::<u64>();
 
-          let total_output_value = tx.output.iter().map(|txout| txout.value).sum::<u64>();
+          let total_output_value = tx.output.iter().map(|txout| txout.value.to_sat()).sum::<u64>();
 
           // Calculate the fee
           let fee = total_input_value - total_output_value;
@@ -673,22 +675,29 @@ impl Updater<'_> {
 
           // According to the first-in, first-out (FIFO) rule,
           // the first sat of the first output corresponds to the first sat of the first input.
-          let sat = orig_input_sat_ranges
-            .as_ref()
-            .and_then(|ranges| ranges.front().map(|(start, _)| *start))
-            .unwrap_or(0); // Use 0 if no input sat range is found (should never happen)
+          let sat = input_sat_ranges
+              .as_ref()
+              .and_then(|ranges| ranges.get(0))
+              .and_then(|range| range.get(0..11))
+              .map(|chunk| SatRange::load(chunk.try_into().unwrap()).0)
+              .unwrap_or(0); // Use 0 if no input sat range is found (should never happen)
 
           let first_output = &tx.output[0];
-          let value = first_output.value;
-          let size = tx.size().try_into().unwrap();
+          let value = first_output.value.to_sat();
+
+          // TODO: figure out what "size" is used by bitcoin core and/or esplora so that we have the same value for all indexers
+          // see https://github.com/rust-bitcoin/rust-bitcoin/pull/2076
+          // base_size vs total_size
+          let size = tx.total_size().try_into().unwrap();
           let weight = tx.weight().into();
+          let transaction_id = tx.compute_txid();
 
           if lock_time == 21 {
-            println!("Meow! 😺 {} {} {}", next_lock_time_number, tx.txid(), sat);
+            println!("Meow! 😺 {} {} {}", next_lock_time_number, transaction_id, sat);
           }
 
           let lock_time_ordinal_entry: LockTimeOrdinalEntry = LockTimeOrdinalEntry {
-              transaction_id: tx.txid(),
+              transaction_id,
               lock_time,
               number: next_lock_time_number,
               block_height: self.height,
@@ -938,7 +947,7 @@ impl Updater<'_> {
   }
 }
 
-
+//  CAT-21 😺 - START
 fn get_next_lock_time_number(
   wtx: &mut WriteTransaction,
   lock_time: u32
@@ -959,3 +968,4 @@ fn get_next_lock_time_number(
 
   Ok(next_number)
 }
+//  CAT-21 😺 - END

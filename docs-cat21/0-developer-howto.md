@@ -144,14 +144,14 @@ cd cat21-ord
 
 7. Start the indexing:
 
-  ```sh
-  ./target/release/ord \
-    --index-sats \
-    --index-addresses \
-    --no-index-inscriptions \
-    server \
+   ```sh
+   ./target/release/ord \
+     --index-sats \
+     --index-addresses \
+     --no-index-inscriptions \
+     server \
     --http-port 8080
-  ```
+   ```
 
 9. Run the ord daemon permanently:
 
@@ -180,6 +180,45 @@ cd cat21-ord
     ```
     sudo journalctl --vacuum-time=1w
     ```
+
+    To confirm the size of logs:
+
+    ```bash
+    sudo journalctl --disk-usage
+    ```
+
+    You can limit the size of `journalctl` logs to prevent them from growing indefinitely.
+
+    To set a Disk Space Limit, edit the `journald.conf` file:
+
+    ```bash
+    sudo nano /etc/systemd/journald.conf
+    ```
+
+    Set or modify the following values:
+
+    ```ini
+    SystemMaxUse=200M
+    SystemKeepFree=50M
+    SystemMaxFileSize=50M
+    ```
+
+    - **`SystemMaxUse`**: Limits the total space used by journal logs.
+    - **`SystemKeepFree`**: Ensures this much disk space remains free.
+    - **`SystemMaxFileSize`**: Limits the size of individual log files.
+
+    Save and exit the file. Then restart the `systemd-journald` service:
+
+    ```bash
+    sudo systemctl restart systemd-journald
+    ```
+
+    Manually clean up logs to free space immediately:
+
+    ```bash
+    sudo journalctl --vacuum-size=200M
+    ```
+
 
 ### Personal Notepad with intersting links
 

@@ -111,7 +111,7 @@ cd cat21-ord
     Feel free to use the files in `deploy-ord-dev` for a fast setup:
 
     ```
-    sudo cp /home/ord-dev/cat21-ord/deploy-ord-dev/bitcoind.service /etc/systemd/system/
+    sudo cp ./deploy-ord-dev/bitcoind.service /etc/systemd/system/
     sudo systemctl daemon-reload
     sudo systemctl enable bitcoind
     sudo systemctl start bitcoind

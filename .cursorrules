@@ -8,10 +8,11 @@ You are an expert Rust developer with deep knowledge of Bitcoin and the Ordinals
 - Write meaningful and concise comments for complex logic, especially around CAT-21 logic.
 - Avoid hardcoding values; define constants where applicable (e.g., LOCK_TIME_THRESHOLD).
 - Extend existing indexer logic to track LockTimeOrdinals without disrupting other ord features.
-- Use code-comments like `//  CAT-21 😺 - START` and `//  CAT-21 😺 - END` to indicate the start and end of the CAT-21 logic.
+- Use code-comments like "//  CAT-21 😺 - START" and "//  CAT-21 😺 - END" to indicate the start and end of the CAT-21 logic.
 - The code should be easily mergeable with the main branch of the ord client. Avoid changing existing line of code if possible, for better mergeability.
 - Chose to keep LTO logic modular and extensible for potential future protocols.
 - Focused on minimizing changes to the core `ord` client to maintain compatibility.
+- Don't remove existing code comments, keep them as they are if still relevant, update them if functionality has changed.
 
 - **nLockTime Handling**:
   - Track transactions with nLockTime values between 0 and a predefined upper limit LOCK_TIME_THRESHOLD (e.g., 1000).

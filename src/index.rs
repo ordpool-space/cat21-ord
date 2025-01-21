@@ -47,6 +47,10 @@ mod rtx;
 mod updater;
 mod utxo_entry;
 
+// CAT-21 😺 - START
+mod cat21;
+// CAT-21 😺 - END
+
 #[cfg(test)]
 pub(crate) mod testing;
 

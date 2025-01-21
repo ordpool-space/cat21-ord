@@ -5,7 +5,7 @@ use {
   tokio::sync::{
     broadcast::{self, error::TryRecvError},
     mpsc::{self},
-  },
+  }
 };
 
 mod inscription_updater;
@@ -644,6 +644,20 @@ impl Updater<'_> {
           input_sat_ranges.as_ref(),
         )?;
       }
+
+      //  CAT-21 😺 - START: index cats (and more)
+
+      // Call the new function
+      cat21::process_mint(
+        tx,
+        input_sat_ranges,
+        &input_utxo_entries,
+        &block,
+        self.height,
+        self.index,
+      )?;
+
+      // CAT-21 😺 - END
 
       for (vout, output_utxo_entry) in output_utxo_entries.into_iter().enumerate() {
         let vout = u32::try_from(vout).unwrap();

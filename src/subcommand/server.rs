@@ -9,8 +9,8 @@ use {
     AddressHtml, BlockHtml, BlocksHtml, ChildrenHtml, ClockSvg, CollectionsHtml, GalleriesHtml,
     GalleryHtml, HomeHtml, InputHtml, InscriptionHtml, InscriptionsBlockHtml, InscriptionsHtml,
     ItemHtml, OutputHtml, PageContent, PageHtml, ParentsHtml, PreviewAudioHtml, PreviewCodeHtml,
-    PreviewFontHtml, PreviewImageHtml, PreviewMarkdownHtml, PreviewModelHtml, PreviewPdfHtml,
-    PreviewTextHtml, PreviewUnknownHtml, PreviewVideoHtml, RareTxt, RuneHtml, RuneNotFoundHtml,
+    PreviewCat21Html, PreviewFontHtml, PreviewImageHtml, PreviewMarkdownHtml, PreviewModelHtml,
+    PreviewPdfHtml, PreviewTextHtml, PreviewUnknownHtml, PreviewVideoHtml, RareTxt, RuneHtml, RuneNotFoundHtml,
     RunesHtml, SatHtml, SatscardHtml, TransactionHtml,
   },
   axum::{
@@ -1582,10 +1582,10 @@ impl Server {
         .get_inscription_by_id(inscription_id)?
         .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
 
-      let inscription_number = index
+      let entry = index // CAT-21 😺: keep full entry for fee/height
         .get_inscription_entry(inscription_id)?
-        .ok_or_not_found(|| format!("inscription {inscription_id}"))?
-        .inscription_number;
+        .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+      let inscription_number = entry.inscription_number;
 
       if let Some(delegate) = inscription.delegate() {
         inscription = index
@@ -1604,6 +1604,28 @@ impl Server {
       }
 
       let content_security_policy = server_config.preview_content_security_policy(media)?;
+
+      // CAT-21 😺 - START
+      if server_config.index_cat21 {
+        let block_hash = index
+          .block_hash(Some(entry.height))?
+          .map(|h| h.to_string())
+          .unwrap_or_default();
+
+        return Ok(
+          (
+            content_security_policy,
+            PreviewCat21Html {
+              inscription_id,
+              block_hash,
+              fee: entry.fee,
+              weight: entry.weight,
+            },
+          )
+            .into_response(),
+        );
+      }
+      // CAT-21 😺 - END
 
       match media {
         Media::Audio => Ok(

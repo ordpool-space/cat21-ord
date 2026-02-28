@@ -31,6 +31,7 @@ enum Origin {
     reinscription: bool,
     unbound: bool,
     vindicated: bool,
+    weight: u64, // CAT-21 😺
   },
   Old {
     sequence_number: u32,
@@ -222,6 +223,7 @@ impl InscriptionUpdater<'_, '_> {
               || curse == Some(Curse::UnrecognizedEvenField)
               || inscription.payload.unrecognized_even_field,
             vindicated: curse.is_some() && jubilant,
+            weight: tx.weight().to_wu(), // CAT-21 😺
           },
         });
 
@@ -436,6 +438,7 @@ impl InscriptionUpdater<'_, '_> {
         reinscription,
         unbound,
         vindicated,
+        weight, // CAT-21 😺
       } => {
         let inscription_number = if cursed {
           let number: i32 = self.cursed_inscription_count.try_into().unwrap();
@@ -556,6 +559,7 @@ impl InscriptionUpdater<'_, '_> {
             sat,
             sequence_number,
             timestamp: self.timestamp,
+            weight, // CAT-21 😺
           }
           .store(),
         )?;

@@ -20,7 +20,7 @@ pub struct Settings {
   index: Option<PathBuf>,
   index_addresses: bool,
   index_cache_size: Option<usize>,
-  index_cat21: bool,
+  index_cat21: bool, // CAT-21 😺
   index_runes: bool,
   index_sats: bool,
   index_transactions: bool,
@@ -136,7 +136,7 @@ impl Settings {
       index: self.index.or(source.index),
       index_addresses: self.index_addresses || source.index_addresses,
       index_cache_size: self.index_cache_size.or(source.index_cache_size),
-      index_cat21: self.index_cat21 || source.index_cat21,
+      index_cat21: self.index_cat21 || source.index_cat21, // CAT-21 😺
       index_runes: self.index_runes || source.index_runes,
       index_sats: self.index_sats || source.index_sats,
       index_transactions: self.index_transactions || source.index_transactions,
@@ -175,7 +175,7 @@ impl Settings {
       index: options.index,
       index_addresses: options.index_addresses,
       index_cache_size: options.index_cache_size,
-      index_cat21: options.index_cat21,
+      index_cat21: options.index_cat21, // CAT-21 😺
       index_runes: options.index_runes,
       index_sats: options.index_sats,
       index_transactions: options.index_transactions,
@@ -266,7 +266,7 @@ impl Settings {
       index: get_path("INDEX"),
       index_addresses: get_bool("INDEX_ADDRESSES"),
       index_cache_size: get_usize("INDEX_CACHE_SIZE")?,
-      index_cat21: get_bool("INDEX_CAT21"),
+      index_cat21: get_bool("INDEX_CAT21"), // CAT-21 😺
       index_runes: get_bool("INDEX_RUNES"),
       index_sats: get_bool("INDEX_SATS"),
       index_transactions: get_bool("INDEX_TRANSACTIONS"),
@@ -299,7 +299,7 @@ impl Settings {
       index: None,
       index_addresses: true,
       index_cache_size: None,
-      index_cat21: false,
+      index_cat21: false, // CAT-21 😺
       index_runes: true,
       index_sats: true,
       index_transactions: false,
@@ -368,7 +368,7 @@ impl Settings {
       http_port: self.http_port,
       index: Some(index),
       index_addresses: self.index_addresses,
-      index_cat21: self.index_cat21,
+      index_cat21: self.index_cat21, // CAT-21 😺
       index_cache_size: Some(match self.index_cache_size {
         Some(index_cache_size) => index_cache_size,
         None => {
@@ -1143,7 +1143,7 @@ mod tests {
         index: Some("index".into()),
         index_addresses: true,
         index_cache_size: Some(4),
-        index_cat21: false,
+        index_cat21: false, // CAT-21 😺
         index_runes: true,
         index_sats: true,
         index_transactions: true,
@@ -1209,7 +1209,7 @@ mod tests {
         index: Some("index".into()),
         index_addresses: true,
         index_cache_size: Some(4),
-        index_cat21: false,
+        index_cat21: false, // CAT-21 😺
         index_runes: true,
         index_sats: true,
         index_transactions: true,

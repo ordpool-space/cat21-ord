@@ -190,6 +190,7 @@ impl Server {
         accept_offers: self.accept_offers,
         chain: settings.chain(),
         csp_origin: self.csp_origin.clone(),
+        index_cat21: settings.index_cat21(), // CAT-21 😺
         decompress: self.decompress,
         domain: acme_domains.first().cloned(),
         index_sats: index.has_sat_index(),
@@ -209,6 +210,11 @@ impl Server {
         .route("/address/{address}", get(Self::address))
         .route("/block/{query}", get(Self::block))
         .route("/blockcount", get(Self::block_count))
+        // CAT-21 😺 - START
+        .route("/cat/{txid}", get(Self::cat))
+        .route("/cats", get(Self::cats))
+        .route("/cats/{page}", get(Self::cats_paginated))
+        // CAT-21 😺 - END
         .route("/blocks", get(Self::blocks))
         .route("/bounties", get(Self::bounties))
         .route("/children/{inscription_id}", get(Self::children))
@@ -1510,6 +1516,20 @@ impl Server {
     task::block_in_place(|| Ok(index.block_count()?.to_string()))
   }
 
+  // CAT-21 😺 - START
+  async fn cat(Path(txid): Path<String>) -> Redirect {
+    Redirect::to(&format!("/inscription/{txid}i0"))
+  }
+
+  async fn cats() -> Redirect {
+    Redirect::to("/inscriptions")
+  }
+
+  async fn cats_paginated(Path(page): Path<u32>) -> Redirect {
+    Redirect::to(&format!("/inscriptions/{page}"))
+  }
+  // CAT-21 😺 - END
+
   async fn input(
     Extension(server_config): Extension<Arc<ServerConfig>>,
     Extension(index): Extension<Arc<Index>>,
@@ -1779,6 +1799,7 @@ impl Server {
           fee: info.fee,
           height: info.height,
           id: info.id,
+          index_cat21: server_config.index_cat21, // CAT-21 😺
           inscription,
           next: info.next,
           number: info.number,
@@ -2052,6 +2073,7 @@ impl Server {
         .into_response()
       } else {
         InscriptionsHtml {
+          index_cat21: server_config.index_cat21, // CAT-21 😺
           inscriptions,
           next,
           prev,

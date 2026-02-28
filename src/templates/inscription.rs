@@ -9,6 +9,7 @@ pub struct InscriptionHtml {
   pub fee: u64,
   pub height: u32,
   pub id: InscriptionId,
+  pub index_cat21: bool, // CAT-21 😺
   pub inscription: Inscription,
   pub next: Option<InscriptionId>,
   pub number: i32,
@@ -24,7 +25,13 @@ pub struct InscriptionHtml {
 
 impl PageContent for InscriptionHtml {
   fn title(&self) -> String {
-    format!("Inscription {}", self.number)
+    // CAT-21 😺 - START
+    if self.index_cat21 {
+      format!("Cat Number {}", self.number)
+    } else {
+      format!("Inscription {}", self.number)
+    }
+    // CAT-21 😺 - END
   }
 }
 

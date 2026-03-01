@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang=en
+  data-inscription={{self.inscription_id}}
+  data-block-hash={{self.block_hash}}
+  data-fee={{self.fee}}
+  data-weight={{self.weight}}>
+  <head>
+    <meta charset=utf-8>
+    <meta name=format-detection content='telephone=no'>
+    <style>
+      html {
+        background-color: #131516;
+        height: 100%;
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        margin: 0;
+      }
+
+      svg {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+    <script type=module>
+      import { createCatHash, MooncatParser } from '/static/cat21.js';
+
+      const el = document.documentElement;
+      const inscriptionId = el.dataset.inscription;
+      const blockHash = el.dataset.blockHash;
+      const fee = Number(el.dataset.fee);
+      const weight = Number(el.dataset.weight);
+
+      const txid = inscriptionId.replace(/i\d+$/, '');
+      const vsize = weight / 4;
+      const feeRate = fee / vsize;
+
+      const hash = createCatHash(txid, blockHash);
+      const { svg } = MooncatParser.parseAndGenerateSvg(hash, feeRate);
+      document.body.innerHTML = svg;
+    </script>
+  </head>
+  <body></body>
+</html>

@@ -31,6 +31,7 @@ enum Origin {
     reinscription: bool,
     unbound: bool,
     vindicated: bool,
+    weight: u64, // CAT-21 😺
   },
   Old {
     sequence_number: u32,
@@ -84,7 +85,19 @@ impl InscriptionUpdater<'_, '_> {
       .map(|txout| txout.value.to_sat())
       .sum::<u64>();
 
-    let envelopes = ParsedEnvelope::from_transaction(tx);
+    // CAT-21 😺 - START
+    let envelopes = if index.settings.index_cat21() {
+      // Only index nLockTime=21 transactions as fake inscriptions.
+      // Real inscriptions are completely ignored.
+      if tx.lock_time.to_consensus_u32() == 21 {
+        vec![ParsedEnvelope::default()]
+      } else {
+        vec![]
+      }
+    } else {
+      ParsedEnvelope::from_transaction(tx)
+    };
+    // CAT-21 😺 - END
     let has_new_inscriptions = !envelopes.is_empty();
     let mut envelopes = envelopes.into_iter().peekable();
 
@@ -210,6 +223,7 @@ impl InscriptionUpdater<'_, '_> {
               || curse == Some(Curse::UnrecognizedEvenField)
               || inscription.payload.unrecognized_even_field,
             vindicated: curse.is_some() && jubilant,
+            weight: tx.weight().to_wu(), // CAT-21 😺
           },
         });
 
@@ -424,6 +438,7 @@ impl InscriptionUpdater<'_, '_> {
         reinscription,
         unbound,
         vindicated,
+        weight, // CAT-21 😺
       } => {
         let inscription_number = if cursed {
           let number: i32 = self.cursed_inscription_count.try_into().unwrap();
@@ -544,6 +559,7 @@ impl InscriptionUpdater<'_, '_> {
             sat,
             sequence_number,
             timestamp: self.timestamp,
+            weight, // CAT-21 😺
           }
           .store(),
         )?;

@@ -1,4 +1,8 @@
+%% if self.index_cat21 {
+<h1>Cat Number {{ self.number }}</h1>
+%% } else {
 <h1>Inscription {{ self.number }}</h1>
+%% }
 %% if let Some(title) = &self.properties.attributes.title {
 <p class=subtitle>{{ title }}</p>
 %% }

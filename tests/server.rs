@@ -262,6 +262,7 @@ fn inscription_page() {
         ..default()
       },
       id: inscription,
+      index_cat21: false, // CAT-21 😺
       number: 0,
       next: None,
       output: Some(TxOut {

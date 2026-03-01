@@ -57,6 +57,7 @@ mod expected;
 mod test_server;
 
 mod balances;
+mod cat21; // CAT-21 😺
 mod decode;
 mod epochs;
 mod find;

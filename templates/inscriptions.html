@@ -1,4 +1,8 @@
+%% if self.index_cat21 {
+<h1>All Cats</h1>
+%% } else {
 <h1>All Inscriptions</h1>
+%% }
 <div class=thumbnails>
 %% for id in &self.inscriptions {
   {{Iframe::thumbnail(*id)}}

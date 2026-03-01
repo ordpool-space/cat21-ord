@@ -2,6 +2,7 @@ use super::*;
 
 #[derive(Boilerplate)]
 pub(crate) struct InscriptionsHtml {
+  pub(crate) index_cat21: bool, // CAT-21 😺
   pub(crate) inscriptions: Vec<InscriptionId>,
   pub(crate) prev: Option<u32>,
   pub(crate) next: Option<u32>,
@@ -9,7 +10,13 @@ pub(crate) struct InscriptionsHtml {
 
 impl PageContent for InscriptionsHtml {
   fn title(&self) -> String {
-    "Inscriptions".into()
+    // CAT-21 😺 - START
+    if self.index_cat21 {
+      "Cats".into()
+    } else {
+      "Inscriptions".into()
+    }
+    // CAT-21 😺 - END
   }
 }
 
@@ -21,6 +28,7 @@ mod tests {
   fn without_prev_and_next() {
     assert_regex_match!(
       InscriptionsHtml {
+        index_cat21: false,
         inscriptions: vec![inscription_id(1), inscription_id(2)],
         prev: None,
         next: None,
@@ -44,6 +52,7 @@ mod tests {
   fn with_prev_and_next() {
     assert_regex_match!(
       InscriptionsHtml {
+        index_cat21: false,
         inscriptions: vec![inscription_id(1), inscription_id(2)],
         prev: Some(1),
         next: Some(2),

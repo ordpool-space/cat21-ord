@@ -298,6 +298,7 @@ pub struct InscriptionEntry {
   pub sat: Option<Sat>,
   pub sequence_number: u32,
   pub timestamp: u32,
+  pub weight: u64, // CAT-21 😺
 }
 
 pub(crate) type InscriptionEntryValue = (
@@ -310,6 +311,7 @@ pub(crate) type InscriptionEntryValue = (
   Option<u64>,        // sat
   u32,                // sequence number
   u32,                // timestamp
+  u64,                // weight // CAT-21 😺
 );
 
 impl Entry for InscriptionEntry {
@@ -327,6 +329,7 @@ impl Entry for InscriptionEntry {
       sat,
       sequence_number,
       timestamp,
+      weight, // CAT-21 😺
     ): InscriptionEntryValue,
   ) -> Self {
     Self {
@@ -339,6 +342,7 @@ impl Entry for InscriptionEntry {
       sat: sat.map(Sat),
       sequence_number,
       timestamp,
+      weight, // CAT-21 😺
     }
   }
 
@@ -353,6 +357,7 @@ impl Entry for InscriptionEntry {
       self.sat.map(Sat::n),
       self.sequence_number,
       self.timestamp,
+      self.weight, // CAT-21 😺
     )
   }
 }
@@ -508,9 +513,10 @@ mod tests {
       sat: Some(Sat(7)),
       sequence_number: 8,
       timestamp: 9,
+      weight: 10, // CAT-21 😺
     };
 
-    let value = (0, 1, 2, id.store(), 3, vec![4, 5, 6], Some(7), 8, 9);
+    let value = (0, 1, 2, id.store(), 3, vec![4, 5, 6], Some(7), 8, 9, 10);
 
     assert_eq!(entry.clone().store(), value);
     assert_eq!(InscriptionEntry::load(value), entry);

@@ -131,18 +131,18 @@ fn cat_route_redirects_to_inscription() {
     .redirect(reqwest::redirect::Policy::none())
     .build()
     .unwrap()
-    .get(
-      ord
-        .url()
-        .join(&format!("/cat/{cat_txid}"))
-        .unwrap(),
-    )
+    .get(ord.url().join(&format!("/cat/{cat_txid}")).unwrap())
     .send()
     .unwrap();
 
   assert_eq!(response.status(), StatusCode::SEE_OTHER);
   assert_eq!(
-    response.headers().get("location").unwrap().to_str().unwrap(),
+    response
+      .headers()
+      .get("location")
+      .unwrap()
+      .to_str()
+      .unwrap(),
     format!("/inscription/{cat_txid}i0")
   );
 }
@@ -162,7 +162,12 @@ fn cats_route_redirects_to_inscriptions() {
 
   assert_eq!(response.status(), StatusCode::SEE_OTHER);
   assert_eq!(
-    response.headers().get("location").unwrap().to_str().unwrap(),
+    response
+      .headers()
+      .get("location")
+      .unwrap()
+      .to_str()
+      .unwrap(),
     "/inscriptions"
   );
 }
@@ -182,7 +187,12 @@ fn cats_paginated_route_redirects() {
 
   assert_eq!(response.status(), StatusCode::SEE_OTHER);
   assert_eq!(
-    response.headers().get("location").unwrap().to_str().unwrap(),
+    response
+      .headers()
+      .get("location")
+      .unwrap()
+      .to_str()
+      .unwrap(),
     "/inscriptions/5"
   );
 }
@@ -221,14 +231,8 @@ fn multiple_cat21_transactions_get_sequential_numbers() {
   };
 
   // Cat #0 and Cat #1
-  ord.assert_response_regex(
-    format!("/inscription/{id_0}"),
-    r".*<h1>Cat Number 0</h1>.*",
-  );
-  ord.assert_response_regex(
-    format!("/inscription/{id_1}"),
-    r".*<h1>Cat Number 1</h1>.*",
-  );
+  ord.assert_response_regex(format!("/inscription/{id_0}"), r".*<h1>Cat Number 0</h1>.*");
+  ord.assert_response_regex(format!("/inscription/{id_1}"), r".*<h1>Cat Number 1</h1>.*");
 }
 
 #[test]
@@ -256,5 +260,78 @@ fn cat21_inscription_page_shows_cat_heading_in_title() {
     format!("/inscription/{inscription_id}"),
     r".*<title>Cat Number 0</title>.*",
   );
+}
+
+#[test]
+fn cat21_json_api_returns_inscription() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  let cat_txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let inscription_id = InscriptionId {
+    txid: cat_txid,
+    index: 0,
+  };
+
+  let response = ord.json_request(format!("/inscription/{inscription_id}"));
+  assert_eq!(response.status(), StatusCode::OK);
+
+  let json: api::Inscription = serde_json::from_str(&response.text().unwrap()).unwrap();
+  assert_eq!(json.id, inscription_id);
+  assert_eq!(json.number, 0);
+  assert_eq!(json.content_type, None);
+  assert_eq!(json.content_length, None);
+}
+
+#[test]
+fn cat21_inscriptions_page_shows_cats_heading() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  ord.assert_response_regex("/inscriptions", r".*<h1>All Cats</h1>.*");
+}
+
+#[test]
+fn cat21_content_returns_404() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  let cat_txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let inscription_id = InscriptionId {
+    txid: cat_txid,
+    index: 0,
+  };
+
+  // Cats have no on-chain content — SVG is rendered client-side in preview
+  let response = ord.request(format!("/content/{inscription_id}"));
+  assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 // CAT-21 😺 - END

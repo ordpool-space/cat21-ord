@@ -8,10 +8,10 @@ use {
   crate::templates::{
     AddressHtml, BlockHtml, BlocksHtml, ChildrenHtml, ClockSvg, CollectionsHtml, GalleriesHtml,
     GalleryHtml, HomeHtml, InputHtml, InscriptionHtml, InscriptionsBlockHtml, InscriptionsHtml,
-    ItemHtml, OutputHtml, PageContent, PageHtml, ParentsHtml, PreviewAudioHtml, PreviewCodeHtml,
-    PreviewCat21Html, PreviewFontHtml, PreviewImageHtml, PreviewMarkdownHtml, PreviewModelHtml,
-    PreviewPdfHtml, PreviewTextHtml, PreviewUnknownHtml, PreviewVideoHtml, RareTxt, RuneHtml, RuneNotFoundHtml,
-    RunesHtml, SatHtml, SatscardHtml, TransactionHtml,
+    ItemHtml, OutputHtml, PageContent, PageHtml, ParentsHtml, PreviewAudioHtml, PreviewCat21Html,
+    PreviewCodeHtml, PreviewFontHtml, PreviewImageHtml, PreviewMarkdownHtml, PreviewModelHtml,
+    PreviewPdfHtml, PreviewTextHtml, PreviewUnknownHtml, PreviewVideoHtml, RareTxt, RuneHtml,
+    RuneNotFoundHtml, RunesHtml, SatHtml, SatscardHtml, TransactionHtml,
   },
   axum::{
     Router,

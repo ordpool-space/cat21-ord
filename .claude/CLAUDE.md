@@ -14,13 +14,14 @@ Inspired by `labitbu/pathologies` (Labitbu's ord fork for indexing pathologies).
 
 ```bash
 cargo build --release
-cargo fmt -- --check   # lint — MUST pass before every commit (CI will reject it otherwise)
+cargo fmt -- --check                              # format lint
+RUSTFLAGS="--deny warnings" cargo clippy --all --all-targets  # clippy lint
 cargo test
 # See the wiki for full setup: https://github.com/ordpool-space/cat21-ord/wiki
 ```
 
 ### HARD RULE: Always lint before committing
-Run `cargo fmt -- --check` before every commit. If it fails, run `cargo fmt` to fix, then commit. CI runs the same check and will fail the build if formatting is off.
+Run both `cargo fmt -- --check` AND `RUSTFLAGS="--deny warnings" cargo clippy --all --all-targets` before every commit. CI runs both checks with `--deny warnings` and will fail the build on any warning or formatting issue.
 
 ## CAT-21 Development Rules
 

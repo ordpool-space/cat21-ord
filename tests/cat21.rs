@@ -25,7 +25,7 @@ fn cat21_transaction_is_indexed_as_inscription() {
   // The cat should appear as inscription #0
   ord.assert_response_regex(
     format!("/inscription/{inscription_id}"),
-    format!(".*<h1>Cat Number 0</h1>.*"),
+    ".*<h1>Cat Number 0</h1>.*",
   );
 }
 

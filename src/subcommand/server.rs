@@ -1616,7 +1616,7 @@ impl Server {
           (
             content_security_policy,
             PreviewCat21Html {
-              inscription_id,
+              txid: inscription_id.txid,
               block_hash,
               fee: entry.fee,
               weight: entry.weight,

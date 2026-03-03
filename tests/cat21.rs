@@ -78,7 +78,7 @@ fn cat21_preview_returns_cat21_template() {
   ord.assert_response_regex(
     format!("/preview/{inscription_id}"),
     format!(
-      r".*data-inscription={inscription_id}.*data-block-hash=[[:xdigit:]]{{64}}.*data-fee=\d+.*data-weight=\d+.*cat21\.js.*"
+      r".*data-txid={cat_txid}.*data-block-hash=[[:xdigit:]]{{64}}.*data-fee=\d+.*data-weight=\d+.*cat21\.js.*"
     ),
   );
 }
@@ -104,10 +104,12 @@ fn cat21_preview_has_correct_fee_and_weight() {
     index: 0,
   };
 
-  // Fee should match what we set
+  // All data attributes should be present and correct
   ord.assert_response_regex(
     format!("/preview/{inscription_id}"),
-    format!(r".*data-fee=1234.*data-weight=\d+.*"),
+    format!(
+      r".*data-txid={cat_txid}.*data-block-hash=[[:xdigit:]]{{64}}.*data-fee=1234.*data-weight=\d+.*"
+    ),
   );
 }
 

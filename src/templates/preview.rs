@@ -56,7 +56,7 @@ pub(crate) struct PreviewUnknownHtml;
 // CAT-21 😺 - START
 #[derive(Boilerplate)]
 pub(crate) struct PreviewCat21Html {
-  pub(crate) inscription_id: InscriptionId,
+  pub(crate) txid: Txid,
   pub(crate) block_hash: String,
   pub(crate) fee: u64,
   pub(crate) weight: u64,

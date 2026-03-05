@@ -671,7 +671,8 @@ impl Server {
     let text = String::from_utf8_lossy(&bytes);
     let text = text
       .replace("Inscription", "Cat")
-      .replace("inscription", "cat");
+      .replace("inscription", "cat")
+      .replace("<h2>0 Runes</h2>\n", "");
 
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }

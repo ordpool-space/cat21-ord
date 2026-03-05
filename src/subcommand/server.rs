@@ -368,6 +368,19 @@ impl Server {
         router
       };
 
+      // CAT-21 😺 - START
+      // Wrap the router so /cat/ and /cats URLs are rewritten to /inscription/ and /inscriptions
+      // BEFORE axum's route matching. Router::layer() runs AFTER matching, so the URL rewrite
+      // must be on an outer Router that delegates to the inner one via fallback_service.
+      let router = if server_config.index_cat21 {
+        Router::new()
+          .fallback_service(router)
+          .layer(axum::middleware::from_fn(Self::cat21_url_rewrite))
+      } else {
+        router
+      };
+      // CAT-21 😺 - END
+
       match (self.http_port(), self.https_port()) {
         (Some(http_port), None) => {
           self
@@ -622,24 +635,43 @@ impl Server {
   }
 
   // CAT-21 😺 - START
-  // Central middleware for all CAT-21 display transformations.
-  // Inbound: rewrites /cat/ → /inscription/, /cats → /inscriptions (so upstream routes handle them).
-  // Outbound: replaces text in HTML and CSS responses so templates stay upstream-clean.
-  async fn cat21_text_layer(
-    server_config: Extension<Arc<ServerConfig>>,
+  // Inbound middleware: rewrites /cat/ → /inscription/, /cats → /inscriptions URLs
+  // so upstream routes handle them. Applied via an outer Router wrapping the main one,
+  // ensuring URL rewriting happens BEFORE axum's route matching.
+  async fn cat21_url_rewrite(
     mut request: http::Request<axum::body::Body>,
     next: axum::middleware::Next,
-  ) -> ServerResult {
-    if server_config.index_cat21 {
-      let path = request.uri().path();
-      if path.contains("cat") {
-        let new_path = path.replace("cat", "inscription");
-        let mut parts = request.uri().clone().into_parts();
-        parts.path_and_query = Some(new_path.parse().unwrap());
-        *request.uri_mut() = Uri::from_parts(parts).unwrap();
-      }
+  ) -> Response {
+    let path = request.uri().path();
+
+    let new_path = if path == "/cats" || path.starts_with("/cats/") {
+      Some(format!("/inscriptions{}", &path[5..]))
+    } else if path.starts_with("/cat/") {
+      Some(format!("/inscription{}", &path[4..]))
+    } else {
+      None
+    };
+
+    if let Some(new_path) = new_path {
+      let paq = if let Some(q) = request.uri().query() {
+        format!("{new_path}?{q}")
+      } else {
+        new_path
+      };
+      let mut parts = request.uri().clone().into_parts();
+      parts.path_and_query = Some(paq.parse().unwrap());
+      *request.uri_mut() = Uri::from_parts(parts).unwrap();
     }
 
+    next.run(request).await
+  }
+
+  // Outbound middleware: replaces text in HTML and CSS responses so templates stay upstream-clean.
+  async fn cat21_text_layer(
+    server_config: Extension<Arc<ServerConfig>>,
+    request: http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+  ) -> ServerResult {
     let response = next.run(request).await;
 
     if !server_config.index_cat21 {

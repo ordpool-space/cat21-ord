@@ -46,8 +46,11 @@ Without the flag, ord behaves 100% like upstream. With `--index-cat21`, the inde
 
 ### Display Layer: `cat21_text_layer` Middleware
 
-All cat21 display transformations are centralized in one axum middleware (`cat21_text_layer` in `server.rs`). Templates render plain upstream content; the middleware transforms HTML and CSS responses when `--index-cat21` is active:
+All cat21 display transformations are centralized in two axum middlewares in `server.rs`:
 
+**`cat21_url_rewrite` (inbound)** — Rewrites `/cat/` → `/inscription/` and `/cats` → `/inscriptions` URLs before route matching. Applied via an outer `Router` wrapping the main one with `fallback_service`, because `Router::layer()` runs AFTER route matching and can't rewrite URLs in time.
+
+**`cat21_text_layer` (outbound)** — Transforms HTML and CSS response bodies when `--index-cat21` is active:
 - **Terminology**: `Inscription` → `Cat`, `inscription` → `cat` (applies to both HTML text and CSS class selectors like `.inscription` → `.cat`)
 - **Home title**: `<title>Ordinals</title>` → `<title>CAT-21</title>`
 - **Nav**: Replaces `<sup>beta</sup>` with `<sup>CAT-21</sup>` and injects the genesis cat logo link
@@ -56,11 +59,11 @@ All cat21 display transformations are centralized in one axum middleware (`cat21
 
 **Design principle**: Keep templates upstream-clean. Never add `%% if index_cat21` conditionals for display-only changes — put them in the middleware instead. The only exception is `inscription.html`'s traits section, which needs dynamic data attributes (`txid`, `block_hash`, `fee`, `weight`) that only the template has access to.
 
-**Layer ordering matters**: The middleware must be listed before the `Extension` layers (making it innermost in the onion) so it can extract `ServerConfig`, but after `CompressionLayer` (so it processes uncompressed response bodies).
+**Layer ordering**: The outbound `cat21_text_layer` must be listed before the `Extension` layers (innermost in the onion) so it can extract `ServerConfig`, but after `CompressionLayer` (so it processes uncompressed bodies). The inbound `cat21_url_rewrite` wraps the entire router from outside via `Router::new().fallback_service(inner).layer(...)`.
 
 ### Routes
 
-In cat21 mode, `/cat/{id}` and `/cats` routes are added alongside the original `/inscription/` and `/inscriptions` routes (which also still work). The original routes are kept untouched for zero diff with upstream.
+No extra routes are needed. The inbound URL rewrite ensures `/cat/{id}` and `/cats` URLs map to the existing `/inscription/` and `/inscriptions` routes. The original routes are untouched — zero diff with upstream.
 
 ### What ord handles automatically
 Once cats appear as inscriptions:

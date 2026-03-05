@@ -280,4 +280,49 @@ fn cat21_inscription_page_has_traits_section() {
     ),
   );
 }
+#[test]
+fn cat_url_rewrites_to_inscription() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  let cat_txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let inscription_id = InscriptionId {
+    txid: cat_txid,
+    index: 0,
+  };
+
+  // /cat/ URL should serve the same content as /inscription/
+  ord.assert_response_regex(
+    format!("/cat/{inscription_id}"),
+    ".*<h1>Cat 0</h1>.*",
+  );
+}
+
+#[test]
+fn cats_url_rewrites_to_inscriptions() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  // /cats URL should serve the same content as /inscriptions
+  ord.assert_response_regex("/cats", r".*<h1>All Cats</h1>.*");
+}
 // CAT-21 😺 - END

@@ -35,7 +35,13 @@ nav {
   gap: 1.2rem;
 }
 
-/* ── Make nav icons white and larger (except cat21 logo) ── */
+/* ── Larger icons ── */
+.icon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+/* ── Make nav icons white (except cat21 logo) ── */
 nav img.icon {
   filter: brightness(0) invert(1);
 }

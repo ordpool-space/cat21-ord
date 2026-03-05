@@ -28,9 +28,15 @@ html, body, .collapse, .monospace {
   --search-fg: #ffffff;
 }
 
-/* ── Make nav icons white ── */
+/* ── Make nav icons white and larger (except cat21 logo) ── */
 nav img.icon {
   filter: brightness(0) invert(1);
+  height: 30px;
+}
+
+nav a[title="genesis"] img.icon,
+nav a[title="ordpool"] img.icon {
+  filter: none;
 }
 
 /* ── Hide nav links irrelevant for cat21 mode ── */
@@ -43,6 +49,11 @@ nav a[title="handbook"],
 nav a[title="github"],
 nav a[title="discord"] {
   display: none;
+}
+
+/* ── Nav home link: prevent line break ── */
+nav a[title="home"] {
+  white-space: nowrap;
 }
 
 /* ── Typography ── */

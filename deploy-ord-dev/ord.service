@@ -11,7 +11,8 @@ ExecStart=/home/ord-dev/cat21-ord/target/release/ord \
   --index-addresses \
   --index-cat21 \
   server \
-  --http
+  --http \
+  --enable-json-api
 User=ord-dev
 Restart=on-failure
 

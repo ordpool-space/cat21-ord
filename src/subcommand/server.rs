@@ -279,26 +279,6 @@ impl Server {
         .route("/tx/{txid}", get(Self::transaction))
         .route("/update", get(Self::update));
 
-      // CAT-21 😺 - START
-      let router = if server_config.index_cat21 {
-        router
-          .route("/cat/{inscription_query}", get(Self::inscription))
-          .route(
-            "/cat/{inscription_query}/{child}",
-            get(Self::inscription_child),
-          )
-          .route("/cats", get(Self::inscriptions))
-          .route("/cats/block/{height}", get(Self::inscriptions_in_block))
-          .route(
-            "/cats/block/{height}/{page}",
-            get(Self::inscriptions_in_block_paginated),
-          )
-          .route("/cats/{page}", get(Self::inscriptions_paginated))
-      } else {
-        router
-      };
-      // CAT-21 😺 - END
-
       // recursive endpoints
       let router = router
         .route("/blockhash", get(r::blockhash_string))
@@ -643,12 +623,23 @@ impl Server {
 
   // CAT-21 😺 - START
   // Central middleware for all CAT-21 display transformations.
-  // Replaces text in HTML and CSS responses so templates stay upstream-clean.
+  // Inbound: rewrites /cat/ → /inscription/, /cats → /inscriptions (so upstream routes handle them).
+  // Outbound: replaces text in HTML and CSS responses so templates stay upstream-clean.
   async fn cat21_text_layer(
     server_config: Extension<Arc<ServerConfig>>,
-    request: http::Request<axum::body::Body>,
+    mut request: http::Request<axum::body::Body>,
     next: axum::middleware::Next,
   ) -> ServerResult {
+    if server_config.index_cat21 {
+      let path = request.uri().path();
+      if path.contains("cat") {
+        let new_path = path.replace("cat", "inscription");
+        let mut parts = request.uri().clone().into_parts();
+        parts.path_and_query = Some(new_path.parse().unwrap());
+        *request.uri_mut() = Uri::from_parts(parts).unwrap();
+      }
+    }
+
     let response = next.run(request).await;
 
     if !server_config.index_cat21 {
@@ -688,6 +679,11 @@ impl Server {
       .replace(
         "<link rel=stylesheet href=/static/modern-normalize.css>",
         "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
+      )
+      // Nav: ordpool link
+      .replace(
+        "<a href=https://docs.ordinals.com/ title=handbook>",
+        "<a href=https://ordpool.space title=ordpool><img class=icon src=/static/ordpool-logo.png></a>\n      <a href=https://docs.ordinals.com/ title=handbook>",
       );
 
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
@@ -2159,16 +2155,12 @@ impl Server {
 
       let next = more.then_some(page_index + 1);
 
-      // CAT-21 😺 - START
-      let last = if server_config.index_cat21 {
+      let last = {
         let status = index.status(server_config.json_api_enabled)?;
         let last_page = status.inscriptions.saturating_sub(1) / 100;
         let last_page = u32::try_from(last_page).unwrap_or(u32::MAX);
         (last_page > page_index).then_some(last_page)
-      } else {
-        None
       };
-      // CAT-21 😺 - END
 
       Ok(if accept_json {
         Json(api::Inscriptions {

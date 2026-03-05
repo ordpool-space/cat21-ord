@@ -3,7 +3,7 @@ use super::*;
 #[derive(Boilerplate)]
 pub(crate) struct InscriptionsHtml {
   pub(crate) inscriptions: Vec<InscriptionId>,
-  pub(crate) last: Option<u32>, // CAT-21 😺
+  pub(crate) last: Option<u32>,
   pub(crate) prev: Option<u32>,
   pub(crate) next: Option<u32>,
 }

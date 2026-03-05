@@ -37,18 +37,14 @@ nav {
 
 /* ── Larger icons ── */
 .icon {
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 2.5rem;
+  width: 2.5rem;
 }
 
-/* ── Make nav icons white (except cat21 logo) ── */
-nav img.icon {
+/* ── Make specific nav icons white ── */
+nav a[title="blocks"] img.icon,
+nav input.icon[type="image"] {
   filter: brightness(0) invert(1);
-}
-
-nav a[title="genesis"] img.icon,
-nav a[title="ordpool"] img.icon {
-  filter: none;
 }
 
 /* ── Hide nav links irrelevant for cat21 mode ── */

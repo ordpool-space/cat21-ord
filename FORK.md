@@ -35,6 +35,35 @@ Because `--index-cat21` ignores all real inscriptions, the only things in the in
 
 No translation between inscription numbers and cat numbers is needed — they are the same thing in this dedicated index.
 
+## Server: Display Layer + Routes — `src/subcommand/server.rs`
+
+### `cat21_text_layer` Middleware
+
+All display transformations are centralized in one axum middleware. Templates render plain upstream content; the middleware transforms HTML and CSS responses:
+
+- `Inscription` → `Cat` / `inscription` → `cat` (text + CSS selectors)
+- Home page title → `CAT-21`
+- Nav superscript → `CAT-21` + genesis cat logo link
+- Injects `cat21-page.css` + `public-pixel.woff2` font
+- Strips `0 Runes` heading
+
+### Cat Routes
+
+`/cat/{id}` and `/cats` routes are added alongside the original `/inscription/` and `/inscriptions` routes. Both work — the original routes are untouched for zero diff with upstream.
+
+### Cat Preview + Traits
+
+- **Preview**: `PreviewCat21Html` renders the cat SVG client-side via `cat21.js`, using `SHA256(txId + blockHash)` and fee rate
+- **Traits**: `inscription.html` includes a `#cat21-traits` div with data attributes; `cat21-traits.js` computes and renders traits via DOM API
+
+### Static Assets
+
+- `static/cat21-page.css` — orange theme, Public Pixel font, nav styling
+- `static/cat21-traits.css` + `cat21-traits.js` — trait display on inscription page
+- `static/cat21.js` — cat SVG generation (from ordpool-parser)
+- `static/cat21-logo.svg`, `static/ordpool-logo.png` — nav icons
+- `static/preview-cat21.css` — orange background for cat previews
+
 ## Inspiration
 
 Discovered from the Labitbu project (`labitbu/pathologies`), which uses the same fake inscription trick to index WebP images embedded in Taproot control blocks. Their detection parses 4129-byte witness items for a NUMS key. CAT-21 detection checks `nLockTime == 21`.

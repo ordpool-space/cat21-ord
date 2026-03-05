@@ -27,13 +27,7 @@ pub struct InscriptionHtml {
 
 impl PageContent for InscriptionHtml {
   fn title(&self) -> String {
-    // CAT-21 😺 - START
-    if self.index_cat21 {
-      format!("Cat Number {}", self.number)
-    } else {
-      format!("Inscription {}", self.number)
-    }
-    // CAT-21 😺 - END
+    format!("Inscription {}", self.number)
   }
 }
 

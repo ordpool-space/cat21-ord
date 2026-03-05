@@ -642,6 +642,8 @@ impl Server {
   }
 
   // CAT-21 😺 - START
+  // Central middleware for all CAT-21 display transformations.
+  // Replaces text in HTML and CSS responses so templates stay upstream-clean.
   async fn cat21_text_layer(
     server_config: Extension<Arc<ServerConfig>>,
     request: http::Request<axum::body::Body>,
@@ -670,9 +672,23 @@ impl Server {
 
     let text = String::from_utf8_lossy(&bytes);
     let text = text
+      // Terminology: inscription → cat (applies to both HTML text and CSS selectors)
       .replace("Inscription", "Cat")
       .replace("inscription", "cat")
-      .replace("<h2>0 Runes</h2>\n", "");
+      // Hide runes (always 0 in cat21 mode)
+      .replace("<h2>0 Runes</h2>\n", "")
+      // Home page title
+      .replace("<title>Ordinals</title>", "<title>CAT-21</title>")
+      // Nav: superscript + genesis cat link
+      .replace(
+        "Ordinals<sup>beta</sup></a>",
+        "Ordinals<sup>CAT-21</sup></a>\n      <a href=/cat/0 title=genesis><img class=icon src=/static/cat21-logo.svg></a>",
+      )
+      // Inject cat21 CSS + font preload
+      .replace(
+        "<link rel=stylesheet href=/static/modern-normalize.css>",
+        "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
+      );
 
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }
@@ -1146,7 +1162,6 @@ impl Server {
     task::block_in_place(|| {
       Ok(
         HomeHtml {
-          index_cat21: server_config.index_cat21, // CAT-21 😺
           inscriptions: index.get_home_inscriptions()?,
         }
         .page(server_config),
@@ -2164,7 +2179,6 @@ impl Server {
         .into_response()
       } else {
         InscriptionsHtml {
-          index_cat21: server_config.index_cat21, // CAT-21 😺
           inscriptions,
           last,
           next,

@@ -25,7 +25,7 @@ fn cat21_transaction_is_indexed_as_inscription() {
   // The cat should appear as inscription #0
   ord.assert_response_regex(
     format!("/inscription/{inscription_id}"),
-    ".*<h1>Cat Number 0</h1>.*",
+    ".*<h1>Cat 0</h1>.*",
   );
 }
 
@@ -147,8 +147,8 @@ fn multiple_cat21_transactions_get_sequential_numbers() {
   };
 
   // Cat #0 and Cat #1
-  ord.assert_response_regex(format!("/inscription/{id_0}"), r".*<h1>Cat Number 0</h1>.*");
-  ord.assert_response_regex(format!("/inscription/{id_1}"), r".*<h1>Cat Number 1</h1>.*");
+  ord.assert_response_regex(format!("/inscription/{id_0}"), r".*<h1>Cat 0</h1>.*");
+  ord.assert_response_regex(format!("/inscription/{id_1}"), r".*<h1>Cat 1</h1>.*");
 }
 
 #[test]
@@ -171,10 +171,10 @@ fn cat21_inscription_page_shows_cat_heading_in_title() {
     index: 0,
   };
 
-  // The page title should say "Cat Number 0"
+  // The page title should say "Cat 0"
   ord.assert_response_regex(
     format!("/inscription/{inscription_id}"),
-    r".*<title>Cat Number 0</title>.*",
+    r".*<title>Cat 0</title>.*",
   );
 }
 
@@ -223,7 +223,7 @@ fn cat21_inscriptions_page_shows_cats_heading() {
 
   core.mine_blocks(1);
 
-  ord.assert_response_regex("/inscriptions", r".*<h1>All CAT-21 Ordinals</h1>.*");
+  ord.assert_response_regex("/inscriptions", r".*<h1>All Cats</h1>.*");
 }
 
 #[test]

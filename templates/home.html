@@ -1,8 +1,4 @@
-%% if self.index_cat21 {
-<h1>Latest CAT-21 Ordinals</h1>
-%% } else {
 <h1>Latest Inscriptions</h1>
-%% }
 <div class=thumbnails>
 %% for inscription in &self.inscriptions {
   {{ Iframe::thumbnail(*inscription) }}

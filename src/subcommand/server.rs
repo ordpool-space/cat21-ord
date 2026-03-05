@@ -2144,6 +2144,17 @@ impl Server {
 
       let next = more.then_some(page_index + 1);
 
+      // CAT-21 😺 - START
+      let last = if server_config.index_cat21 {
+        let status = index.status(server_config.json_api_enabled)?;
+        let last_page = status.inscriptions.saturating_sub(1) / 100;
+        let last_page = u32::try_from(last_page).unwrap_or(u32::MAX);
+        (last_page > page_index).then_some(last_page)
+      } else {
+        None
+      };
+      // CAT-21 😺 - END
+
       Ok(if accept_json {
         Json(api::Inscriptions {
           ids: inscriptions,
@@ -2155,6 +2166,7 @@ impl Server {
         InscriptionsHtml {
           index_cat21: server_config.index_cat21, // CAT-21 😺
           inscriptions,
+          last,
           next,
           prev,
         }

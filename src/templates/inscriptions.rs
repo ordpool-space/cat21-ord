@@ -4,6 +4,7 @@ use super::*;
 pub(crate) struct InscriptionsHtml {
   pub(crate) index_cat21: bool, // CAT-21 😺
   pub(crate) inscriptions: Vec<InscriptionId>,
+  pub(crate) last: Option<u32>, // CAT-21 😺
   pub(crate) prev: Option<u32>,
   pub(crate) next: Option<u32>,
 }
@@ -30,6 +31,7 @@ mod tests {
       InscriptionsHtml {
         index_cat21: false,
         inscriptions: vec![inscription_id(1), inscription_id(2)],
+        last: None,
         prev: None,
         next: None,
       },
@@ -54,6 +56,7 @@ mod tests {
       InscriptionsHtml {
         index_cat21: false,
         inscriptions: vec![inscription_id(1), inscription_id(2)],
+        last: None,
         prev: Some(1),
         next: Some(2),
       },

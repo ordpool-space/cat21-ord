@@ -731,6 +731,30 @@ impl Server {
       text
     };
 
+    // Transaction page: line break + txid as ordpool link
+    let text = if is_html_or_css {
+      let tag = "<h1>Transaction <span class=monospace>";
+      let end_tag = "</span></h1>";
+      if let Some(start) = text.find(tag) {
+        let tag_end = start + tag.len();
+        if let Some(close) = text[tag_end..].find(end_tag) {
+          let txid = &text[tag_end..tag_end + close];
+          let after = tag_end + close + end_tag.len();
+          format!(
+            "{}<h1>Transaction<br><span class=monospace>{txid}</span><br><a href=https://ordpool.space/tx/{txid}><img class=icon src=/static/ordpool-logo.png> view on ordpool.space</a></h1>{}",
+            &text[..start],
+            &text[after..],
+          )
+        } else {
+          text
+        }
+      } else {
+        text
+      }
+    } else {
+      text
+    };
+
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }
   // CAT-21 😺 - END

@@ -75,11 +75,11 @@ dt {
 }
 
 .thumbnails > a {
-  border-color: rgba(0, 0, 0, 0.2);
+  border: none;
 }
 
 .thumbnails > a:hover {
-  border-color: rgba(0, 0, 0, 0.4);
+  border: none;
 }
 
 /* ── Search placeholder ── */

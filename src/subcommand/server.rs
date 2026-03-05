@@ -653,13 +653,13 @@ impl Server {
       return Ok(response);
     }
 
-    let is_html = response
+    let should_replace = response
       .headers()
       .get(header::CONTENT_TYPE)
       .and_then(|v| v.to_str().ok())
-      .is_some_and(|ct| ct.contains("text/html"));
+      .is_some_and(|ct| ct.contains("text/html") || ct.contains("text/css"));
 
-    if !is_html {
+    if !should_replace {
       return Ok(response);
     }
 
@@ -668,12 +668,12 @@ impl Server {
       .await
       .map_err(|err| anyhow!(err))?;
 
-    let html = String::from_utf8_lossy(&bytes);
-    let html = html
+    let text = String::from_utf8_lossy(&bytes);
+    let text = text
       .replace("Inscription", "Cat")
       .replace("inscription", "cat");
 
-    Ok(Response::from_parts(parts, axum::body::Body::from(html)))
+    Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }
   // CAT-21 😺 - END
 

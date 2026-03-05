@@ -2140,6 +2140,40 @@ impl Index {
     )
   }
 
+  // CAT-21 😺 - START
+  pub fn rebuild_home_inscriptions(&self) -> Result<()> {
+    // Read the last 100 inscription entries
+    let entries: Vec<(u32, InscriptionIdValue)> = {
+      let rtx = self.database.begin_read()?;
+      let table = rtx.open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?;
+      table
+        .iter()?
+        .rev()
+        .take(100)
+        .map(|result| {
+          let (seq, entry_value) = result?;
+          let entry = InscriptionEntry::load(entry_value.value());
+          Ok((seq.value(), entry.id.store()))
+        })
+        .collect::<Result<Vec<_>>>()?
+    };
+
+    // Clear and rebuild HOME_INSCRIPTIONS
+    let wtx = self.begin_write()?;
+    {
+      let mut table = wtx.open_table(HOME_INSCRIPTIONS)?;
+      while table.pop_first()?.is_some() {}
+      for &(seq_num, id) in entries.iter().rev() {
+        table.insert(&seq_num, id)?;
+      }
+    }
+    wtx.commit()?;
+
+    println!("Rebuilt HOME_INSCRIPTIONS with {} entries", entries.len());
+    Ok(())
+  }
+  // CAT-21 😺 - END
+
   pub fn get_feed_inscriptions(&self, n: usize) -> Result<Vec<(u32, InscriptionId)>> {
     Ok(
       self

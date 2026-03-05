@@ -147,3 +147,13 @@
   <dt>ethereum teleburn address</dt>
   <dd class=collapse>{{ teleburn::Ethereum::from(self.id) }}</dd>
 </dl>
+%% if self.index_cat21 {
+<div id="cat21-traits"
+  data-txid={{self.id.txid}}
+  data-block-hash={{self.block_hash}}
+  data-fee={{self.fee}}
+  data-weight={{self.weight}}>
+</div>
+<link rel=stylesheet href=/static/cat21-traits.css>
+<script src=/static/cat21-traits.js type=module defer></script>
+%% }

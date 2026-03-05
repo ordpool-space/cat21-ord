@@ -114,92 +114,6 @@ fn cat21_preview_has_correct_fee_and_weight() {
 }
 
 #[test]
-fn cat_route_redirects_to_inscription() {
-  let core = mockcore::spawn();
-  core.mine_blocks(1);
-
-  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
-
-  let cat_txid = core.broadcast_tx(TransactionTemplate {
-    inputs: &[(1, 0, 0, Witness::new())],
-    lock_time: 21,
-    ..default()
-  });
-
-  core.mine_blocks(1);
-
-  // /cat/<txid> should redirect to /inscription/<txid>i0
-  let response = reqwest::blocking::Client::builder()
-    .redirect(reqwest::redirect::Policy::none())
-    .build()
-    .unwrap()
-    .get(ord.url().join(&format!("/cat/{cat_txid}")).unwrap())
-    .send()
-    .unwrap();
-
-  assert_eq!(response.status(), StatusCode::SEE_OTHER);
-  assert_eq!(
-    response
-      .headers()
-      .get("location")
-      .unwrap()
-      .to_str()
-      .unwrap(),
-    format!("/inscription/{cat_txid}i0")
-  );
-}
-
-#[test]
-fn cats_route_redirects_to_inscriptions() {
-  let core = mockcore::spawn();
-  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
-
-  let response = reqwest::blocking::Client::builder()
-    .redirect(reqwest::redirect::Policy::none())
-    .build()
-    .unwrap()
-    .get(ord.url().join("/cats").unwrap())
-    .send()
-    .unwrap();
-
-  assert_eq!(response.status(), StatusCode::SEE_OTHER);
-  assert_eq!(
-    response
-      .headers()
-      .get("location")
-      .unwrap()
-      .to_str()
-      .unwrap(),
-    "/inscriptions"
-  );
-}
-
-#[test]
-fn cats_paginated_route_redirects() {
-  let core = mockcore::spawn();
-  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
-
-  let response = reqwest::blocking::Client::builder()
-    .redirect(reqwest::redirect::Policy::none())
-    .build()
-    .unwrap()
-    .get(ord.url().join("/cats/5").unwrap())
-    .send()
-    .unwrap();
-
-  assert_eq!(response.status(), StatusCode::SEE_OTHER);
-  assert_eq!(
-    response
-      .headers()
-      .get("location")
-      .unwrap()
-      .to_str()
-      .unwrap(),
-    "/inscriptions/5"
-  );
-}
-
-#[test]
 fn multiple_cat21_transactions_get_sequential_numbers() {
   let core = mockcore::spawn();
   core.mine_blocks(1);
@@ -309,7 +223,7 @@ fn cat21_inscriptions_page_shows_cats_heading() {
 
   core.mine_blocks(1);
 
-  ord.assert_response_regex("/inscriptions", r".*<h1>All Cats</h1>.*");
+  ord.assert_response_regex("/inscriptions", r".*<h1>All CAT-21 Ordinals</h1>.*");
 }
 
 #[test]
@@ -335,5 +249,35 @@ fn cat21_content_returns_404() {
   // Cats have no on-chain content — SVG is rendered client-side in preview
   let response = ord.request(format!("/content/{inscription_id}"));
   assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[test]
+fn cat21_inscription_page_has_traits_section() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  let cat_txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    fee: 5000,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let inscription_id = InscriptionId {
+    txid: cat_txid,
+    index: 0,
+  };
+
+  // The inscription page should include the traits container with all data attributes
+  ord.assert_response_regex(
+    format!("/inscription/{inscription_id}"),
+    format!(
+      r#".*<div id="cat21-traits"\s+data-txid={cat_txid}\s+data-block-hash=[[:xdigit:]]{{64}}\s+data-fee=5000\s+data-weight=\d+>.*cat21-traits\.css.*cat21-traits\.js.*"#
+    ),
+  );
 }
 // CAT-21 😺 - END

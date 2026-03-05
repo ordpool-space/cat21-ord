@@ -1,0 +1,92 @@
+/* CAT-21 😺 — cat21.space theme for ord */
+
+/* ── Public Pixel font (same as cat21.space) ── */
+@font-face {
+  font-family: "Public Pixel";
+  src: url("/static/public-pixel.woff2") format("woff2"),
+       url("/static/public-pixel.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+html {
+  font-family: "Public Pixel", monospace;
+  font-size: 0.7rem;
+}
+
+/* ── Color overrides ── */
+:root {
+  --dark-bg: #FF9900;
+  --dark-fg: #ffffff;
+  --light-bg: rgba(0, 0, 0, 0.15);
+  --light-fg: #ffffff;
+  --link: #ffffff;
+  --search-bg: rgba(255, 255, 255, 0.25);
+  --search-border: rgba(255, 255, 255, 0.4);
+  --search-fg: #ffffff;
+}
+
+/* ── Hide nav links irrelevant for cat21 mode ── */
+nav a[title="runes"],
+nav a[title="collections"],
+nav a[title="galleries"],
+nav a[title="clock"],
+nav a[title="rare"],
+nav a[title="handbook"],
+nav a[title="github"],
+nav a[title="discord"] {
+  display: none;
+}
+
+/* ── Replace "beta" superscript with cat emoji ── */
+nav a[title="home"] sup {
+  font-size: 0;
+}
+
+nav a[title="home"] sup::after {
+  content: "😺";
+  font-size: 1rem;
+}
+
+/* ── Typography ── */
+h1 a, h1 a:visited {
+  color: #ffffff;
+}
+
+dt {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Nav prev/next arrows (inscription page) ── */
+.inscription > *:nth-child(1),
+.inscription > *:nth-child(3) {
+  color: rgba(0, 0, 0, 0.2);
+}
+
+.inscription > a:nth-child(1):hover,
+.inscription > a:nth-child(3):hover {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* ── Blocks, thumbnails ── */
+.block {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+.block a {
+  color: #ffffff;
+}
+
+.thumbnails > a {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.thumbnails > a:hover {
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+/* ── Search placeholder ── */
+input[type=text]::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}

@@ -210,11 +210,6 @@ impl Server {
         .route("/address/{address}", get(Self::address))
         .route("/block/{query}", get(Self::block))
         .route("/blockcount", get(Self::block_count))
-        // CAT-21 😺 - START
-        .route("/cat/{txid}", get(Self::cat))
-        .route("/cats", get(Self::cats))
-        .route("/cats/{page}", get(Self::cats_paginated))
-        // CAT-21 😺 - END
         .route("/blocks", get(Self::blocks))
         .route("/bounties", get(Self::bounties))
         .route("/children/{inscription_id}", get(Self::children))
@@ -1093,6 +1088,7 @@ impl Server {
     task::block_in_place(|| {
       Ok(
         HomeHtml {
+          index_cat21: server_config.index_cat21, // CAT-21 😺
           inscriptions: index.get_home_inscriptions()?,
         }
         .page(server_config),
@@ -1516,20 +1512,6 @@ impl Server {
     task::block_in_place(|| Ok(index.block_count()?.to_string()))
   }
 
-  // CAT-21 😺 - START
-  async fn cat(Path(txid): Path<String>) -> Redirect {
-    Redirect::to(&format!("/inscription/{txid}i0"))
-  }
-
-  async fn cats() -> Redirect {
-    Redirect::to("/inscriptions")
-  }
-
-  async fn cats_paginated(Path(page): Path<u32>) -> Redirect {
-    Redirect::to(&format!("/inscriptions/{page}"))
-  }
-  // CAT-21 😺 - END
-
   async fn input(
     Extension(server_config): Extension<Arc<ServerConfig>>,
     Extension(index): Extension<Arc<Index>>,
@@ -1810,7 +1792,24 @@ impl Server {
 
         let properties = inscription.properties();
 
+        // CAT-21 😺 - START
+        let (block_hash, weight) = if server_config.index_cat21 {
+          let bh = index
+            .block_hash(Some(info.height))?
+            .map(|h| h.to_string())
+            .unwrap_or_default();
+          let w = index
+            .get_inscription_entry(info.id)?
+            .map(|e| e.weight)
+            .unwrap_or(0);
+          (bh, w)
+        } else {
+          (String::new(), 0)
+        };
+        // CAT-21 😺 - END
+
         InscriptionHtml {
+          block_hash, // CAT-21 😺
           chain: server_config.chain,
           charms: Charm::Vindicated.unset(info.charms.iter().fold(0, |mut acc, charm| {
             charm.set(&mut acc);
@@ -1833,6 +1832,7 @@ impl Server {
           sat: info.sat,
           satpoint: info.satpoint,
           timestamp: Utc.timestamp_opt(info.timestamp, 0).unwrap(),
+          weight, // CAT-21 😺
         }
         .page(server_config)
         .into_response()

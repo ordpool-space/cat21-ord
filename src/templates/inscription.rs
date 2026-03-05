@@ -2,6 +2,7 @@ use super::*;
 
 #[derive(Boilerplate, Default)]
 pub struct InscriptionHtml {
+  pub block_hash: String, // CAT-21 😺
   pub chain: Chain,
   pub charms: u16,
   pub child_count: u64,
@@ -21,6 +22,7 @@ pub struct InscriptionHtml {
   pub sat: Option<Sat>,
   pub satpoint: SatPoint,
   pub timestamp: DateTime<Utc>,
+  pub weight: u64, // CAT-21 😺
 }
 
 impl PageContent for InscriptionHtml {

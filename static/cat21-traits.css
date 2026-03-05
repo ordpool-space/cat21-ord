@@ -1,0 +1,13 @@
+/* CAT-21 😺 */
+#cat21-traits h2 {
+  margin-top: 1em;
+}
+
+.cat21-swatch {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  margin-bottom: -3px;
+  border: 2px solid white;
+}

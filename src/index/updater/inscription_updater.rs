@@ -216,7 +216,7 @@ impl InscriptionUpdater<'_, '_> {
             cursed: curse.is_some() && !jubilant,
             fee: 0,
             gallery: !inscription.payload.properties().gallery.is_empty(),
-            hidden: inscription.payload.hidden(),
+            hidden: !index.settings.index_cat21() && inscription.payload.hidden(), // CAT-21 😺: cats are never hidden
             parents: inscription.payload.parents(),
             reinscription: inscribed_offsets.contains_key(&offset),
             unbound: input_value == 0

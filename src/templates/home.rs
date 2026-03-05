@@ -2,12 +2,19 @@ use super::*;
 
 #[derive(Boilerplate)]
 pub(crate) struct HomeHtml {
+  pub(crate) index_cat21: bool, // CAT-21 😺
   pub(crate) inscriptions: Vec<InscriptionId>,
 }
 
 impl PageContent for HomeHtml {
   fn title(&self) -> String {
-    "Ordinals".to_string()
+    // CAT-21 😺 - START
+    if self.index_cat21 {
+      "CAT-21".to_string()
+    } else {
+      "Ordinals".to_string()
+    }
+    // CAT-21 😺 - END
   }
 }
 
@@ -19,6 +26,7 @@ mod tests {
   fn html() {
     assert_regex_match!(
       HomeHtml {
+        index_cat21: false, // CAT-21 😺
         inscriptions: vec![inscription_id(1), inscription_id(2)],
       }
       .to_string()

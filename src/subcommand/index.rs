@@ -2,6 +2,7 @@ use super::*;
 
 mod export;
 pub mod info;
+mod rebuild_home; // CAT-21 😺
 mod update;
 
 #[derive(Debug, Parser)]
@@ -10,6 +11,8 @@ pub(crate) enum IndexSubcommand {
   Export(export::Export),
   #[command(about = "Print index statistics")]
   Info(info::Info),
+  #[command(about = "Rebuild HOME_INSCRIPTIONS table from existing index")]
+  RebuildHome, // CAT-21 😺
   #[command(about = "Update the index", alias = "run")]
   Update,
 }
@@ -19,6 +22,7 @@ impl IndexSubcommand {
     match self {
       Self::Export(export) => export.run(settings),
       Self::Info(info) => info.run(settings),
+      Self::RebuildHome => rebuild_home::run(settings), // CAT-21 😺
       Self::Update => update::run(settings),
     }
   }

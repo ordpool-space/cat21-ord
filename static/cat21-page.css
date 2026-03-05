@@ -35,10 +35,20 @@ nav {
   gap: 1.2rem;
 }
 
-/* ── Larger icons ── */
+/* ── Icon sizes ── */
 .icon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+nav a[title="Genesis Cat #0"] img.icon {
   height: 2.5rem;
   width: 2.5rem;
+}
+
+nav a[title="cats"] img.icon {
+  height: 2.5rem;
+  width: auto;
 }
 
 /* ── Make specific nav icons white ── */

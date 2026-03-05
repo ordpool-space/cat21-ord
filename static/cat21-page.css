@@ -28,15 +28,26 @@ html, body, .collapse, .monospace {
   --search-fg: #ffffff;
 }
 
+/* ── Larger nav ── */
+nav {
+  font-size: 1.1rem;
+  padding: 1.2rem;
+  gap: 1.2rem;
+}
+
 /* ── Make nav icons white and larger (except cat21 logo) ── */
 nav img.icon {
   filter: brightness(0) invert(1);
   height: 30px;
 }
 
-nav a[title="genesis"] img.icon,
+nav a[title="genesis"] img.icon {
+  filter: none;
+}
+
 nav a[title="ordpool"] img.icon {
   filter: none;
+  height: 1rem;
 }
 
 /* ── Hide nav links irrelevant for cat21 mode ── */

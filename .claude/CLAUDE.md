@@ -42,12 +42,31 @@ Without the flag, ord behaves 100% like upstream. With `--index-cat21`, the inde
 2. **`src/settings.rs`** — Wires flag through settings, overrides `first_inscription_height()` when active
 3. **`src/chain.rs`** — Defines `first_cat21_height()` (block 815855, genesis cat)
 4. **`src/index/updater/inscription_updater.rs`** — Core logic: nLockTime check + fake envelope creation
+5. **`src/subcommand/server.rs`** — `cat21_text_layer` middleware + `/cat/` and `/cats` routes
+
+### Display Layer: `cat21_text_layer` Middleware
+
+All cat21 display transformations are centralized in one axum middleware (`cat21_text_layer` in `server.rs`). Templates render plain upstream content; the middleware transforms HTML and CSS responses when `--index-cat21` is active:
+
+- **Terminology**: `Inscription` → `Cat`, `inscription` → `cat` (applies to both HTML text and CSS class selectors like `.inscription` → `.cat`)
+- **Home title**: `<title>Ordinals</title>` → `<title>CAT-21</title>`
+- **Nav**: Replaces `<sup>beta</sup>` with `<sup>CAT-21</sup>` and injects the genesis cat logo link
+- **CSS/font**: Injects `cat21-page.css` stylesheet and `public-pixel.woff2` font preload after `modern-normalize.css`
+- **Runes**: Strips `<h2>0 Runes</h2>` (always 0 in cat21 mode)
+
+**Design principle**: Keep templates upstream-clean. Never add `%% if index_cat21` conditionals for display-only changes — put them in the middleware instead. The only exception is `inscription.html`'s traits section, which needs dynamic data attributes (`txid`, `block_hash`, `fee`, `weight`) that only the template has access to.
+
+**Layer ordering matters**: The middleware must be listed before the `Extension` layers (making it innermost in the onion) so it can extract `ServerConfig`, but after `CompressionLayer` (so it processes uncompressed response bodies).
+
+### Routes
+
+In cat21 mode, `/cat/{id}` and `/cats` routes are added alongside the original `/inscription/` and `/inscriptions` routes (which also still work). The original routes are kept untouched for zero diff with upstream.
 
 ### What ord handles automatically
 Once cats appear as inscriptions:
 - Sat assignment (first sat of first output)
 - Transfer tracking across transactions
-- API endpoints (`/inscription/<txid>i0`)
+- API endpoints (`/inscription/<txid>i0` and `/cat/<txid>i0`)
 - Address lookups
 - Database storage
 

@@ -7,7 +7,7 @@
        url("/static/public-pixel.woff") format("woff");
   font-weight: normal;
   font-style: normal;
-  font-display: swap;
+  font-display: block;
 }
 
 html, body, .collapse, .monospace {
@@ -28,6 +28,11 @@ html, body, .collapse, .monospace {
   --search-fg: #ffffff;
 }
 
+/* ── Make nav icons white ── */
+nav img.icon {
+  filter: brightness(0) invert(1);
+}
+
 /* ── Hide nav links irrelevant for cat21 mode ── */
 nav a[title="runes"],
 nav a[title="collections"],
@@ -38,16 +43,6 @@ nav a[title="handbook"],
 nav a[title="github"],
 nav a[title="discord"] {
   display: none;
-}
-
-/* ── Replace "beta" superscript with cat emoji ── */
-nav a[title="home"] sup {
-  font-size: 0;
-}
-
-nav a[title="home"] sup::after {
-  content: "😺";
-  font-size: 1rem;
 }
 
 /* ── Typography ── */

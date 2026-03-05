@@ -279,6 +279,26 @@ impl Server {
         .route("/tx/{txid}", get(Self::transaction))
         .route("/update", get(Self::update));
 
+      // CAT-21 😺 - START
+      let router = if server_config.index_cat21 {
+        router
+          .route("/cat/{inscription_query}", get(Self::inscription))
+          .route(
+            "/cat/{inscription_query}/{child}",
+            get(Self::inscription_child),
+          )
+          .route("/cats", get(Self::inscriptions))
+          .route("/cats/block/{height}", get(Self::inscriptions_in_block))
+          .route(
+            "/cats/block/{height}/{page}",
+            get(Self::inscriptions_in_block_paginated),
+          )
+          .route("/cats/{page}", get(Self::inscriptions_paginated))
+      } else {
+        router
+      };
+      // CAT-21 😺 - END
+
       // recursive endpoints
       let router = router
         .route("/blockhash", get(r::blockhash_string))
@@ -340,6 +360,7 @@ impl Server {
 
       let router = router
         .fallback(Self::fallback)
+        .layer(axum::middleware::from_fn(Self::cat21_text_layer)) // CAT-21 😺
         .layer(Extension(index))
         .layer(Extension(server_config.clone()))
         .layer(Extension(settings.clone()))
@@ -619,6 +640,42 @@ impl Server {
 
     Ok(response)
   }
+
+  // CAT-21 😺 - START
+  async fn cat21_text_layer(
+    server_config: Extension<Arc<ServerConfig>>,
+    request: http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+  ) -> ServerResult {
+    let response = next.run(request).await;
+
+    if !server_config.index_cat21 {
+      return Ok(response);
+    }
+
+    let is_html = response
+      .headers()
+      .get(header::CONTENT_TYPE)
+      .and_then(|v| v.to_str().ok())
+      .is_some_and(|ct| ct.contains("text/html"));
+
+    if !is_html {
+      return Ok(response);
+    }
+
+    let (parts, body) = response.into_parts();
+    let bytes = axum::body::to_bytes(body, usize::MAX)
+      .await
+      .map_err(|err| anyhow!(err))?;
+
+    let html = String::from_utf8_lossy(&bytes);
+    let html = html
+      .replace("Inscription", "Cat")
+      .replace("inscription", "cat");
+
+    Ok(Response::from_parts(parts, axum::body::Body::from(html)))
+  }
+  // CAT-21 😺 - END
 
   fn index_height(index: &Index) -> ServerResult<Height> {
     index.block_height()?.ok_or_not_found(|| "genesis block")

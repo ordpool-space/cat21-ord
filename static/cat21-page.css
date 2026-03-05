@@ -10,7 +10,7 @@
   font-display: swap;
 }
 
-html {
+html, body {
   font-family: "Public Pixel", monospace;
   font-size: 0.7rem;
 }

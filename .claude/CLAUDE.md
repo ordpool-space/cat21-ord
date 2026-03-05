@@ -63,6 +63,14 @@ Once cats appear as inscriptions:
 - **Rebase onto upstream, never merge** — when upstream releases a new version, rebase `index-cat21` onto `upstream/master` and force push. Merge commits create clutter.
 - **Keep changes minimal** — every line we change is a potential merge conflict. Only touch what's necessary.
 
+### Server Deployment
+
+Use the systemd service files in `deploy-ord-dev/` to run services in production:
+- `ord.service` — runs ord with `CAP_NET_BIND_SERVICE` (port 80), auto-restart, journald logging
+- `bitcoind.service` — runs bitcoind with auto-restart
+
+**Never start these manually with `nohup`.**
+
 ### Documentation
 - `FORK.md` — technical description of what this fork changes and how
 - [Wiki](https://github.com/ordpool-space/cat21-ord/wiki) — setup guides for humans (Developer HowTo, Bitcoin guides, Ord guide)

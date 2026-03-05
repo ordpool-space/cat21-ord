@@ -715,7 +715,7 @@ impl Server {
         // Nav: superscript + genesis cat link
         .replace(
           "Ordinals<sup>beta</sup></a>",
-          "Ordinals<sup>CAT-21</sup></a>\n      <a href=/cat/0 title=genesis><img class=icon src=/static/cat21-logo.svg></a>",
+          "Ordinals<sup>CAT-21</sup></a>\n      <a href=/cat/0 title=\"Genesis Cat #0\"><img class=icon src=/static/cat21-logo.svg></a>",
         )
         // Inject cat21 CSS + font preload
         .replace(

@@ -666,7 +666,8 @@ impl Server {
     next.run(request).await
   }
 
-  // Outbound middleware: replaces text in HTML and CSS responses so templates stay upstream-clean.
+  // Outbound middleware: replaces text in responses so templates stay upstream-clean.
+  // HTML/CSS get full display transformations; JSON only gets terminology renaming.
   async fn cat21_text_layer(
     server_config: Extension<Arc<ServerConfig>>,
     request: http::Request<axum::body::Body>,
@@ -678,13 +679,17 @@ impl Server {
       return Ok(response);
     }
 
-    let should_replace = response
+    let content_type = response
       .headers()
       .get(header::CONTENT_TYPE)
       .and_then(|v| v.to_str().ok())
-      .is_some_and(|ct| ct.contains("text/html") || ct.contains("text/css"));
+      .unwrap_or_default()
+      .to_string();
 
-    if !should_replace {
+    let is_html_or_css = content_type.contains("text/html") || content_type.contains("text/css");
+    let is_json = content_type.contains("application/json");
+
+    if !is_html_or_css && !is_json {
       return Ok(response);
     }
 
@@ -694,29 +699,37 @@ impl Server {
       .map_err(|err| anyhow!(err))?;
 
     let text = String::from_utf8_lossy(&bytes);
+
+    // Terminology: inscription → cat (applies to HTML, CSS, and JSON)
     let text = text
-      // Terminology: inscription → cat (applies to both HTML text and CSS selectors)
       .replace("Inscription", "Cat")
-      .replace("inscription", "cat")
-      // Hide runes (always 0 in cat21 mode)
-      .replace("<h2>0 Runes</h2>\n", "")
-      // Home page title
-      .replace("<title>Ordinals</title>", "<title>CAT-21</title>")
-      // Nav: superscript + genesis cat link
-      .replace(
-        "Ordinals<sup>beta</sup></a>",
-        "Ordinals<sup>CAT-21</sup></a>\n      <a href=/cat/0 title=genesis><img class=icon src=/static/cat21-logo.svg></a>",
-      )
-      // Inject cat21 CSS + font preload
-      .replace(
-        "<link rel=stylesheet href=/static/modern-normalize.css>",
-        "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
-      )
-      // Nav: ordpool link
-      .replace(
-        "<a href=https://docs.ordinals.com/ title=handbook>",
-        "<a href=https://ordpool.space title=ordpool><img class=icon src=/static/ordpool-logo.png></a>\n      <a href=https://docs.ordinals.com/ title=handbook>",
-      );
+      .replace("inscription", "cat");
+
+    // HTML/CSS-only transformations
+    let text = if is_html_or_css {
+      text
+        // Hide runes (always 0 in cat21 mode)
+        .replace("<h2>0 Runes</h2>\n", "")
+        // Home page title
+        .replace("<title>Ordinals</title>", "<title>CAT-21</title>")
+        // Nav: superscript + genesis cat link
+        .replace(
+          "Ordinals<sup>beta</sup></a>",
+          "Ordinals<sup>CAT-21</sup></a>\n      <a href=/cat/0 title=genesis><img class=icon src=/static/cat21-logo.svg></a>",
+        )
+        // Inject cat21 CSS + font preload
+        .replace(
+          "<link rel=stylesheet href=/static/modern-normalize.css>",
+          "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
+        )
+        // Nav: ordpool link
+        .replace(
+          "<a href=https://docs.ordinals.com/ title=handbook>",
+          "<a href=https://ordpool.space title=ordpool><img class=icon src=/static/ordpool-logo.png></a>\n      <a href=https://docs.ordinals.com/ title=handbook>",
+        )
+    } else {
+      text
+    };
 
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }

@@ -301,10 +301,7 @@ fn cat_url_rewrites_to_inscription() {
   };
 
   // /cat/ URL should serve the same content as /inscription/
-  ord.assert_response_regex(
-    format!("/cat/{inscription_id}"),
-    ".*<h1>Cat 0</h1>.*",
-  );
+  ord.assert_response_regex(format!("/cat/{inscription_id}"), ".*<h1>Cat 0</h1>.*");
 }
 
 #[test]
@@ -324,5 +321,92 @@ fn cats_url_rewrites_to_inscriptions() {
 
   // /cats URL should serve the same content as /inscriptions
   ord.assert_response_regex("/cats", r".*<h1>All Cats</h1>.*");
+}
+
+#[test]
+fn cat21_json_tx_uses_cat_terminology() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  let cat_txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let response = ord.json_request(format!("/tx/{cat_txid}"));
+  assert_eq!(response.status(), StatusCode::OK);
+
+  let body = response.text().unwrap();
+  assert!(
+    !body.contains("inscription"),
+    "JSON /tx/ response should not contain 'inscription', got: {body}"
+  );
+  assert!(
+    body.contains("cat_count"),
+    "JSON /tx/ response should contain 'cat_count', got: {body}"
+  );
+}
+
+#[test]
+fn cat21_json_output_uses_cat_terminology() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  let cat_txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let response = ord.json_request(format!("/output/{cat_txid}:0"));
+  assert_eq!(response.status(), StatusCode::OK);
+
+  let body = response.text().unwrap();
+  assert!(
+    !body.contains("inscription"),
+    "JSON /output/ response should not contain 'inscription', got: {body}"
+  );
+  assert!(
+    body.contains("cats"),
+    "JSON /output/ response should contain 'cats', got: {body}"
+  );
+}
+
+#[test]
+fn cat21_json_block_uses_cat_terminology() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let response = ord.json_request("/block/2");
+  assert_eq!(response.status(), StatusCode::OK);
+
+  let body = response.text().unwrap();
+  assert!(
+    !body.contains("inscription"),
+    "JSON /block/ response should not contain 'inscription', got: {body}"
+  );
+  assert!(
+    body.contains("cats"),
+    "JSON /block/ response should contain 'cats', got: {body}"
+  );
 }
 // CAT-21 😺 - END

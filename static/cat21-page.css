@@ -132,7 +132,9 @@ input[type=text]::placeholder {
   }
 }
 
-/* ── Block list: keep numbers inside content box ── */
-.block-list {
-  list-style-position: inside;
+/* ── Block list: keep numbers inside content box on mobile ── */
+@media (max-width: 38rem) {
+  .block-list {
+    list-style-position: inside;
+  }
 }

@@ -786,11 +786,14 @@ impl Server {
       .headers
       .insert(header::CONTENT_LENGTH, HeaderValue::from(text.len()));
 
-    // Cache dynamic pages briefly (10 minutes) to reduce server load
-    parts.headers.insert(
-      header::CACHE_CONTROL,
-      HeaderValue::from_static("public, max-age=600"),
-    );
+    // Cache dynamic pages briefly (10 minutes) to reduce server load.
+    // Don't overwrite if already set (e.g. static assets have a longer cache).
+    if !parts.headers.contains_key(header::CACHE_CONTROL) {
+      parts.headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=600"),
+      );
+    }
 
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }

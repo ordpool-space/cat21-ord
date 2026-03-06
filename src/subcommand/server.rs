@@ -786,6 +786,12 @@ impl Server {
       .headers
       .insert(header::CONTENT_LENGTH, HeaderValue::from(text.len()));
 
+    // Cache dynamic pages briefly (10 minutes) to reduce server load
+    parts.headers.insert(
+      header::CACHE_CONTROL,
+      HeaderValue::from_static("public, max-age=600"),
+    );
+
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }
 
@@ -1703,6 +1709,11 @@ impl Server {
     Ok(
       Response::builder()
         .header(header::CONTENT_TYPE, mime.as_ref())
+        // CAT-21 😺: static assets are compiled into the binary — cache for 1 year
+        .header(
+          header::CACHE_CONTROL,
+          "public, max-age=31536000, immutable",
+        )
         .body(content.data.into())
         .unwrap(),
     )

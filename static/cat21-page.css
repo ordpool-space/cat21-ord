@@ -131,6 +131,7 @@ input[type=text]::placeholder {
     height: 2rem;
   }
   ol, ul {
-    padding-left: 1.5rem;
+    padding-left: 0;
+    list-style-position: inside;
   }
 }

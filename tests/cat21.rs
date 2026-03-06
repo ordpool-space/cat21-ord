@@ -509,4 +509,27 @@ fn index_cat21_and_no_index_inscriptions_are_mutually_exclusive() {
     .expected_exit_code(1)
     .run_and_extract_stdout();
 }
+
+#[test]
+fn without_index_cat21_flag_nlocktime21_is_not_indexed() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  // No --index-cat21 flag
+  let ord = TestServer::spawn(&core);
+
+  let txid = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let inscription_id = InscriptionId { txid, index: 0 };
+
+  // Without --index-cat21, nLockTime=21 should NOT be treated as an inscription
+  let response = ord.request(format!("/inscription/{inscription_id}"));
+  assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
 // CAT-21 😺 - END

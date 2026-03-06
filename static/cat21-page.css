@@ -100,10 +100,6 @@ dt {
   list-style-position: inside;
 }
 
-.block-list li {
-  text-align: right;
-}
-
 /* ── Blocks, thumbnails ── */
 .block {
   background-color: rgba(0, 0, 0, 0.15);

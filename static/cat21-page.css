@@ -132,8 +132,7 @@ input[type=text]::placeholder {
   }
 }
 
-/* ── Block list: prevent overflow on mobile ── */
+/* ── Block list: keep numbers inside content box ── */
 .block-list {
-  padding-left: 4rem;
-  overflow-x: hidden;
+  list-style-position: inside;
 }

@@ -748,10 +748,11 @@ impl Server {
           "<link rel=stylesheet href=/static/modern-normalize.css>",
           "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
         )
-        // Override collapse truncation for wider Public Pixel font
+        // Override collapse truncation — must load BEFORE index.js to intercept
+        // its resize handler (Public Pixel overflows without 0.8x correction)
         .replace(
           "<script src=/static/index.js></script>",
-          "<script src=/static/index.js></script>\n    <script src=/static/cat21-collapse.js></script>",
+          "<script src=/static/cat21-collapse.js></script>\n    <script src=/static/index.js></script>",
         )
         // Nav: swap gallery icon with cat composite
         .replace("/static/images.svg", "/static/cats.svg")

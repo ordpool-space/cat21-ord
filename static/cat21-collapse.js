@@ -1,12 +1,28 @@
 // CAT-21 😺 — Override collapse text truncation for Public Pixel font.
 // The upstream index.js resize() calculates how many characters fit, but with
 // Public Pixel the result is too wide — text overflows the container because
-// list markers, padding etc. aren't accounted for. This script re-runs the
-// same logic with a 0.8x capacity multiplier so text fits cleanly.
-// Note: index.js's resize() also runs on DOMContentLoaded and window resize,
-// but we can't remove it (scoped inside a closure). Our fonts.ready handler
-// overwrites its results, so the visual double-run is brief.
+// list markers, padding etc. aren't accounted for.
+//
+// This script loads BEFORE index.js and:
+// 1. Intercepts addEventListener('resize', ...) to block index.js's handler
+// 2. Registers our own resize handler with a 0.8x capacity multiplier
+// 3. Runs after document.fonts.ready so canvas.measureText uses Public Pixel
+
+// Block index.js from registering its resize handler.
+// index.js's DOMContentLoaded callback calls addEventListener('resize', resize)
+// where resize() references a 'collapse' variable. We intercept that one call.
+const _origAddEventListener = window.addEventListener;
+window.addEventListener = function(type, fn, ...args) {
+  if (type === 'resize' && fn.toString().includes('collapse')) {
+    return; // swallow index.js's resize handler
+  }
+  return _origAddEventListener.call(this, type, fn, ...args);
+};
+
 addEventListener("DOMContentLoaded", () => {
+  // Restore addEventListener now that index.js has registered its handlers
+  window.addEventListener = _origAddEventListener;
+
   const MULTIPLIER = 0.8;
   const ctx = document.createElement('canvas').getContext('2d');
 
@@ -32,8 +48,7 @@ addEventListener("DOMContentLoaded", () => {
 
   addEventListener('resize', cat21Resize);
 
-  // Only run after font is ready — avoids a wasted run on DOMContentLoaded
-  // when the font isn't loaded yet (canvas would measure with fallback font).
-  // document.fonts.ready resolves immediately if the font is already cached.
+  // Run after font is ready — canvas.measureText needs the actual Public Pixel
+  // metrics, not the fallback font. Resolves immediately if font is cached.
   document.fonts.ready.then(cat21Resize);
 });

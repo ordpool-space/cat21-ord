@@ -1,7 +1,8 @@
 // CAT-21 😺 — Override collapse text truncation for Public Pixel font.
-// The upstream index.js resize() measures character width via canvas, but
-// Public Pixel's wide glyphs cause overly aggressive truncation. This script
-// re-runs the same logic with a capacity multiplier so more of the hash is shown.
+// The upstream index.js resize() calculates how many characters fit, but with
+// Public Pixel the result is too wide — text overflows the container because
+// list markers, padding etc. aren't accounted for. This script re-runs the
+// same logic with a 0.8x capacity multiplier so text fits cleanly.
 // Note: This executes right after index.js's resize(), so collapse runs twice.
 // We can't remove the original because its resize function is scoped inside
 // a DOMContentLoaded closure with no external reference.
@@ -31,4 +32,8 @@ addEventListener("DOMContentLoaded", () => {
 
   addEventListener('resize', cat21Resize);
   cat21Resize();
+
+  // Re-run after Public Pixel font loads — canvas.measureText uses the
+  // fallback font if the webfont isn't ready yet, producing wrong capacity.
+  document.fonts.ready.then(cat21Resize);
 });

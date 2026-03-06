@@ -94,9 +94,14 @@ dt {
   color: rgba(0, 0, 0, 0.5);
 }
 
-/* ── Block list: prevent number clipping from upstream overflow:hidden ── */
+/* ── Block list ── */
 .block-list {
   overflow: visible;
+  list-style-position: inside;
+}
+
+.block-list li {
+  text-align: right;
 }
 
 /* ── Blocks, thumbnails ── */

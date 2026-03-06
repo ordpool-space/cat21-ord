@@ -1,20 +1,15 @@
-<h1 align=center><code>ord</code></h1>
+`cat21-ord`
+=====
 
-<div align=center>
-  <a href=https://crates.io/crates/ord>
-    <img src=https://img.shields.io/crates/v/ord.svg alt="crates.io version">
-  </a>
-  <a href=https://github.com/ordinals/ord/actions/workflows/ci.yaml>
-    <img src=https://github.com/ordinals/ord/actions/workflows/ci.yaml/badge.svg alt="build status">
-  </a>
-  <a href=https://github.com/ordinals/ord/releases>
-    <img src=https://img.shields.io/github/downloads/ordinals/ord/total.svg alt=downloads>
-  </a>
-  <a href=https://discord.gg/ordinals>
-    <img src=https://img.shields.io/discord/987504378242007100?logo=discord alt="chat on discord">
-  </a>
-</div>
-<br>
+![Orange Banner](https://raw.githubusercontent.com/ordpool-space/cat-21/main/assets/cat21-banner.svg)
+
+Fork of [ord](https://github.com/ordinals/ord) that indexes [CAT-21](https://github.com/ordpool-space/cat-21) cats as fake inscriptions. Meow! 😺
+
+With the `--index-cat21` flag, real inscriptions are completely ignored and only `nLockTime=21` transactions are indexed. This gives us sat tracking, transfer detection, and the full ord API for free. Without the flag, ord behaves 100% like upstream. See [FORK.md](FORK.md) for details.
+
+> **Cat numbers:** Because the index only contains cats, ord's inscription number equals the cat number. The genesis cat (block 815855) is cat #0, the next is cat #1, and so on — matching the official numbering on the [Dune dashboard](https://dune.com/ethspresso/cat21).
+
+---
 
 `ord` is an index, block explorer, and command-line wallet. It is experimental
 software with no warranty. See [LICENSE](LICENSE) for more details.

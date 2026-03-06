@@ -3,6 +3,7 @@ use super::*;
 #[derive(Boilerplate)]
 pub(crate) struct InscriptionsHtml {
   pub(crate) inscriptions: Vec<InscriptionId>,
+  pub(crate) last: Option<u32>,
   pub(crate) prev: Option<u32>,
   pub(crate) next: Option<u32>,
 }
@@ -22,6 +23,7 @@ mod tests {
     assert_regex_match!(
       InscriptionsHtml {
         inscriptions: vec![inscription_id(1), inscription_id(2)],
+        last: None,
         prev: None,
         next: None,
       },
@@ -45,6 +47,7 @@ mod tests {
     assert_regex_match!(
       InscriptionsHtml {
         inscriptions: vec![inscription_id(1), inscription_id(2)],
+        last: None,
         prev: Some(1),
         next: Some(2),
       },

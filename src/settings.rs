@@ -20,6 +20,7 @@ pub struct Settings {
   index: Option<PathBuf>,
   index_addresses: bool,
   index_cache_size: Option<usize>,
+  index_cat21: bool, // CAT-21 😺
   index_runes: bool,
   index_sats: bool,
   index_transactions: bool,
@@ -135,6 +136,7 @@ impl Settings {
       index: self.index.or(source.index),
       index_addresses: self.index_addresses || source.index_addresses,
       index_cache_size: self.index_cache_size.or(source.index_cache_size),
+      index_cat21: self.index_cat21 || source.index_cat21, // CAT-21 😺
       index_runes: self.index_runes || source.index_runes,
       index_sats: self.index_sats || source.index_sats,
       index_transactions: self.index_transactions || source.index_transactions,
@@ -173,6 +175,7 @@ impl Settings {
       index: options.index,
       index_addresses: options.index_addresses,
       index_cache_size: options.index_cache_size,
+      index_cat21: options.index_cat21, // CAT-21 😺
       index_runes: options.index_runes,
       index_sats: options.index_sats,
       index_transactions: options.index_transactions,
@@ -263,6 +266,7 @@ impl Settings {
       index: get_path("INDEX"),
       index_addresses: get_bool("INDEX_ADDRESSES"),
       index_cache_size: get_usize("INDEX_CACHE_SIZE")?,
+      index_cat21: get_bool("INDEX_CAT21"), // CAT-21 😺
       index_runes: get_bool("INDEX_RUNES"),
       index_sats: get_bool("INDEX_SATS"),
       index_transactions: get_bool("INDEX_TRANSACTIONS"),
@@ -295,6 +299,7 @@ impl Settings {
       index: None,
       index_addresses: true,
       index_cache_size: None,
+      index_cat21: false, // CAT-21 😺
       index_runes: true,
       index_sats: true,
       index_transactions: false,
@@ -341,7 +346,7 @@ impl Settings {
       None => data_dir.join("index.redb"),
     };
 
-    Ok(Self {
+    let settings = Self {
       bitcoin_data_dir: Some(bitcoin_data_dir),
       bitcoin_rpc_limit: Some(self.bitcoin_rpc_limit.unwrap_or(12)),
       bitcoin_rpc_password: self.bitcoin_rpc_password,
@@ -363,6 +368,7 @@ impl Settings {
       http_port: self.http_port,
       index: Some(index),
       index_addresses: self.index_addresses,
+      index_cat21: self.index_cat21, // CAT-21 😺
       index_cache_size: Some(match self.index_cache_size {
         Some(index_cache_size) => index_cache_size,
         None => {
@@ -381,7 +387,17 @@ impl Settings {
       server_password: self.server_password,
       server_url: self.server_url,
       server_username: self.server_username,
-    })
+    };
+
+    // CAT-21 😺 - START
+    if settings.index_cat21 && settings.no_index_inscriptions {
+      bail!(
+        "--index-cat21 and --no-index-inscriptions are mutually exclusive: cats are indexed as inscriptions"
+      );
+    }
+    // CAT-21 😺 - END
+
+    Ok(settings)
   }
 
   pub fn default_data_dir() -> Result<PathBuf> {
@@ -527,10 +543,20 @@ impl Settings {
   pub fn first_inscription_height(&self) -> u32 {
     if self.integration_test {
       0
+    // CAT-21 😺 - START
+    } else if self.index_cat21 {
+      self.chain.unwrap().first_cat21_height()
+    // CAT-21 😺 - END
     } else {
       self.chain.unwrap().first_inscription_height()
     }
   }
+
+  // CAT-21 😺 - START
+  pub fn index_cat21(&self) -> bool {
+    self.index_cat21
+  }
+  // CAT-21 😺 - END
 
   pub fn first_rune_height(&self) -> u32 {
     if self.integration_test {
@@ -1127,6 +1153,7 @@ mod tests {
         index: Some("index".into()),
         index_addresses: true,
         index_cache_size: Some(4),
+        index_cat21: false, // CAT-21 😺
         index_runes: true,
         index_sats: true,
         index_transactions: true,
@@ -1192,6 +1219,7 @@ mod tests {
         index: Some("index".into()),
         index_addresses: true,
         index_cache_size: Some(4),
+        index_cat21: false, // CAT-21 😺
         index_runes: true,
         index_sats: true,
         index_transactions: true,

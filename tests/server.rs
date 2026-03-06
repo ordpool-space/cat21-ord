@@ -250,6 +250,7 @@ fn inscription_page() {
     format!("/inscription/{inscription}"),
     Chain::Mainnet,
     InscriptionHtml {
+      block_hash: String::new(), // CAT-21 😺
       chain: Chain::Mainnet,
       charms: 0,
       child_count: 0,
@@ -262,6 +263,7 @@ fn inscription_page() {
         ..default()
       },
       id: inscription,
+      index_cat21: false, // CAT-21 😺
       number: 0,
       next: None,
       output: Some(TxOut {
@@ -283,6 +285,7 @@ fn inscription_page() {
       timestamp: "1970-01-01 00:00:02+00:00"
         .parse::<DateTime<Utc>>()
         .unwrap(),
+      weight: 0, // CAT-21 😺
     },
   );
 }

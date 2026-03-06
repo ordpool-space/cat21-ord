@@ -1601,6 +1601,12 @@ impl Index {
       return Ok(None);
     }
 
+    // CAT-21 😺 - START: fake inscriptions have no real envelope on-chain
+    if self.settings.index_cat21() {
+      return Ok(Some(Inscription::default()));
+    }
+    // CAT-21 😺 - END
+
     Ok(self.get_transaction(inscription_id.txid)?.and_then(|tx| {
       ParsedEnvelope::from_transaction(&tx)
         .into_iter()
@@ -2208,13 +2214,20 @@ impl Index {
       return Ok(None);
     };
 
-    let Some(inscription) = ParsedEnvelope::from_transaction(&transaction)
-      .into_iter()
-      .nth(entry.id.index as usize)
-      .map(|envelope| envelope.payload)
-    else {
-      return Ok(None);
+    // CAT-21 😺 - START: fake inscriptions have no real envelope on-chain
+    let inscription = if self.settings.index_cat21() {
+      Inscription::default()
+    } else {
+      let Some(inscription) = ParsedEnvelope::from_transaction(&transaction)
+        .into_iter()
+        .nth(entry.id.index as usize)
+        .map(|envelope| envelope.payload)
+      else {
+        return Ok(None);
+      };
+      inscription
     };
+    // CAT-21 😺 - END
 
     let satpoint = SatPoint::load(
       *rtx

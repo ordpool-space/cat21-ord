@@ -1,0 +1,13 @@
+/* CAT-21 😺 */
+html {
+  background-color: #FF9900;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
+}

@@ -8,10 +8,10 @@ use {
   crate::templates::{
     AddressHtml, BlockHtml, BlocksHtml, ChildrenHtml, ClockSvg, CollectionsHtml, GalleriesHtml,
     GalleryHtml, HomeHtml, InputHtml, InscriptionHtml, InscriptionsBlockHtml, InscriptionsHtml,
-    ItemHtml, OutputHtml, PageContent, PageHtml, ParentsHtml, PreviewAudioHtml, PreviewCodeHtml,
-    PreviewFontHtml, PreviewImageHtml, PreviewMarkdownHtml, PreviewModelHtml, PreviewPdfHtml,
-    PreviewTextHtml, PreviewUnknownHtml, PreviewVideoHtml, RareTxt, RuneHtml, RuneNotFoundHtml,
-    RunesHtml, SatHtml, SatscardHtml, TransactionHtml,
+    ItemHtml, OutputHtml, PageContent, PageHtml, ParentsHtml, PreviewAudioHtml, PreviewCat21Html,
+    PreviewCodeHtml, PreviewFontHtml, PreviewImageHtml, PreviewMarkdownHtml, PreviewModelHtml,
+    PreviewPdfHtml, PreviewTextHtml, PreviewUnknownHtml, PreviewVideoHtml, RareTxt, RuneHtml,
+    RuneNotFoundHtml, RunesHtml, SatHtml, SatscardHtml, TransactionHtml,
   },
   axum::{
     Router,
@@ -190,6 +190,7 @@ impl Server {
         accept_offers: self.accept_offers,
         chain: settings.chain(),
         csp_origin: self.csp_origin.clone(),
+        index_cat21: settings.index_cat21(), // CAT-21 😺
         decompress: self.decompress,
         domain: acme_domains.first().cloned(),
         index_sats: index.has_sat_index(),
@@ -339,6 +340,7 @@ impl Server {
 
       let router = router
         .fallback(Self::fallback)
+        .layer(axum::middleware::from_fn(Self::cat21_text_layer)) // CAT-21 😺
         .layer(Extension(index))
         .layer(Extension(server_config.clone()))
         .layer(Extension(settings.clone()))
@@ -365,6 +367,19 @@ impl Server {
       } else {
         router
       };
+
+      // CAT-21 😺 - START
+      // Wrap the router so /cat/ and /cats URLs are rewritten to /inscription/ and /inscriptions
+      // BEFORE axum's route matching. Router::layer() runs AFTER matching, so the URL rewrite
+      // must be on an outer Router that delegates to the inner one via fallback_service.
+      let router = if server_config.index_cat21 {
+        Router::new()
+          .fallback_service(router)
+          .layer(axum::middleware::from_fn(Self::cat21_url_rewrite))
+      } else {
+        router
+      };
+      // CAT-21 😺 - END
 
       match (self.http_port(), self.https_port()) {
         (Some(http_port), None) => {
@@ -618,6 +633,210 @@ impl Server {
 
     Ok(response)
   }
+
+  // CAT-21 😺 - START
+  // Inbound middleware: rewrites /cat/ → /inscription/, /cats → /inscriptions URLs
+  // so upstream routes handle them. Applied via an outer Router wrapping the main one,
+  // ensuring URL rewriting happens BEFORE axum's route matching.
+  async fn cat21_url_rewrite(
+    mut request: http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+  ) -> Response {
+    let path = request.uri().path();
+
+    let new_path = if path == "/cats" || path.starts_with("/cats/") {
+      Some(format!("/inscriptions{}", &path[5..]))
+    } else if path.starts_with("/cat/") {
+      Some(format!("/inscription{}", &path[4..]))
+    } else {
+      None
+    };
+
+    if let Some(new_path) = new_path {
+      let paq = if let Some(q) = request.uri().query() {
+        format!("{new_path}?{q}")
+      } else {
+        new_path
+      };
+      let mut parts = request.uri().clone().into_parts();
+      parts.path_and_query = Some(paq.parse().unwrap());
+      *request.uri_mut() = Uri::from_parts(parts).unwrap();
+    }
+
+    next.run(request).await
+  }
+
+  // Outbound middleware: replaces text in responses so templates stay upstream-clean.
+  // HTML/CSS get full display transformations; JSON only gets terminology renaming.
+  async fn cat21_text_layer(
+    server_config: Extension<Arc<ServerConfig>>,
+    request: http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+  ) -> ServerResult {
+    let response = next.run(request).await;
+
+    if !server_config.index_cat21 {
+      return Ok(response);
+    }
+
+    // Rewrite /inscription/ → /cat/ in redirect Location headers so the
+    // browser URL bar shows /cat/ instead of /inscription/
+    if let Some(location) = response.headers().get(header::LOCATION)
+      && let Ok(loc) = location.to_str()
+      && loc.contains("/inscription")
+    {
+      let new_loc = loc.replace("/inscription", "/cat");
+      if let Ok(val) = HeaderValue::from_str(&new_loc) {
+        let mut response = response;
+        response.headers_mut().insert(header::LOCATION, val);
+        return Ok(response);
+      }
+    }
+
+    let content_type = response
+      .headers()
+      .get(header::CONTENT_TYPE)
+      .and_then(|v| v.to_str().ok())
+      .unwrap_or_default()
+      .to_string();
+
+    let is_html_or_css = content_type.contains("text/html") || content_type.contains("text/css");
+    let is_json = content_type.contains("application/json");
+
+    if !is_html_or_css && !is_json {
+      return Ok(response);
+    }
+
+    let (mut parts, body) = response.into_parts();
+    let bytes = axum::body::to_bytes(body, usize::MAX)
+      .await
+      .map_err(|err| anyhow!(err))?;
+
+    let text = String::from_utf8_lossy(&bytes);
+
+    // Protect sat name fields from terminology replacement. Sat names are base-26
+    // encoded numbers (e.g. "inscription") — data, not terminology. We temporarily
+    // replace "inscription" with a placeholder inside name fields, do the blanket
+    // replacement, then restore.
+    const PLACEHOLDER: &str = "i_n_s_c_r_i_p_t_i_o_n";
+    let text = Self::protect_field(&text, "\"name\":\"", "\"", PLACEHOLDER);
+    let text = Self::protect_field(&text, "<dt>name</dt><dd>", "</dd>", PLACEHOLDER);
+    let text = Self::protect_field(&text, "/sat/", "\"", PLACEHOLDER);
+    let text = Self::protect_field(&text, "/sat/", "<", PLACEHOLDER);
+    let text = Self::protect_field(&text, "/sat/", "'", PLACEHOLDER);
+
+    // Terminology: inscription → cat (applies to HTML, CSS, and JSON)
+    let text = text
+      .replace("Inscription", "Cat")
+      .replace("inscription", "cat")
+      .replace(PLACEHOLDER, "inscription");
+
+    // HTML/CSS-only transformations
+    let text = if is_html_or_css {
+      text
+        // Hide runes (always 0 in cat21 mode)
+        .replace("<h2>0 Runes</h2>\n", "")
+        // Home page title
+        .replace("<title>Ordinals</title>", "<title>CAT-21</title>")
+        // Nav: superscript + genesis cat link
+        .replace(
+          "Ordinals<sup>beta</sup></a>",
+          "Ordinals<sup>CAT-21</sup></a>\n      <a href=/cat/0 title=\"Genesis Cat #0\"><img class=icon src=/static/cat21-logo.svg></a>",
+        )
+        // Inject cat21 CSS + font preload
+        .replace(
+          "<link rel=stylesheet href=/static/modern-normalize.css>",
+          "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
+        )
+        // Override collapse truncation — must load BEFORE index.js to intercept
+        // its resize handler (Public Pixel overflows without 0.8x correction)
+        .replace(
+          "<script src=/static/index.js></script>",
+          "<script src=/static/cat21-collapse.js></script>\n    <script src=/static/index.js></script>",
+        )
+        // Nav: swap gallery icon with cat composite
+        .replace("/static/images.svg", "/static/cats.svg")
+        // Nav: ordpool link
+        .replace(
+          "<a href=https://docs.ordinals.com/ title=handbook>",
+          "<a href=https://ordpool.space title=ordpool><img class=icon src=/static/ordpool-logo.png></a>\n      <a href=https://docs.ordinals.com/ title=handbook>",
+        )
+    } else {
+      text
+    };
+
+    // Transaction page: line break + txid as ordpool link
+    let text = if is_html_or_css {
+      let tag = "<h1>Transaction <span class=monospace>";
+      let end_tag = "</span></h1>";
+      if let Some(start) = text.find(tag) {
+        let tag_end = start + tag.len();
+        if let Some(close) = text[tag_end..].find(end_tag) {
+          let txid = &text[tag_end..tag_end + close];
+          let after = tag_end + close + end_tag.len();
+          format!(
+            "{}<h1>Transaction<br><span class=monospace>{txid}</span><br><a href=https://ordpool.space/tx/{txid}><img class=icon src=/static/ordpool-logo.png> view on ordpool.space</a></h1>{}",
+            &text[..start],
+            &text[after..],
+          )
+        } else {
+          text
+        }
+      } else {
+        text
+      }
+    } else {
+      text
+    };
+
+    // Update Content-Length to match the new body size after text replacement
+    parts
+      .headers
+      .insert(header::CONTENT_LENGTH, HeaderValue::from(text.len()));
+
+    // Cache dynamic pages briefly (10 minutes) to reduce server load.
+    // Don't overwrite if already set (e.g. static assets have a longer cache).
+    if !parts.headers.contains_key(header::CACHE_CONTROL) {
+      parts.headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=600"),
+      );
+    }
+
+    Ok(Response::from_parts(parts, axum::body::Body::from(text)))
+  }
+
+  /// Finds all values between `prefix` and `suffix` in `text`, and replaces
+  /// "inscription" with `placeholder` inside those values to protect them from
+  /// the blanket terminology replacement.
+  fn protect_field(text: &str, prefix: &str, suffix: &str, placeholder: &str) -> String {
+    let mut result = text.to_string();
+    let mut search_from = 0;
+    while let Some(start) = result[search_from..].find(prefix) {
+      let abs_start = search_from + start;
+      let val_start = abs_start + prefix.len();
+      if let Some(end) = result[val_start..].find(suffix) {
+        let val = &result[val_start..val_start + end];
+        if val.contains("inscription") {
+          let protected = val.replace("inscription", placeholder);
+          result = format!(
+            "{}{}{}{}",
+            &result[..abs_start],
+            prefix,
+            protected,
+            &result[val_start + end..],
+          );
+          search_from = abs_start + prefix.len() + protected.len();
+        } else {
+          search_from = val_start + end;
+        }
+      } else {
+        break;
+      }
+    }
+    result
+  }
+  // CAT-21 😺 - END
 
   fn index_height(index: &Index) -> ServerResult<Height> {
     index.block_height()?.ok_or_not_found(|| "genesis block")
@@ -1501,6 +1720,11 @@ impl Server {
     Ok(
       Response::builder()
         .header(header::CONTENT_TYPE, mime.as_ref())
+        // CAT-21 😺: static assets are compiled into the binary — cache for 1 year
+        .header(
+          header::CACHE_CONTROL,
+          "public, max-age=31536000, immutable",
+        )
         .body(content.data.into())
         .unwrap(),
     )
@@ -1562,10 +1786,10 @@ impl Server {
         .get_inscription_by_id(inscription_id)?
         .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
 
-      let inscription_number = index
+      let entry = index // CAT-21 😺: keep full entry for fee/height
         .get_inscription_entry(inscription_id)?
-        .ok_or_not_found(|| format!("inscription {inscription_id}"))?
-        .inscription_number;
+        .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+      let inscription_number = entry.inscription_number;
 
       if let Some(delegate) = inscription.delegate() {
         inscription = index
@@ -1584,6 +1808,28 @@ impl Server {
       }
 
       let content_security_policy = server_config.preview_content_security_policy(media)?;
+
+      // CAT-21 😺 - START
+      if server_config.index_cat21 {
+        let block_hash = index
+          .block_hash(Some(entry.height))?
+          .map(|h| h.to_string())
+          .unwrap_or_default();
+
+        return Ok(
+          (
+            content_security_policy,
+            PreviewCat21Html {
+              txid: inscription_id.txid,
+              block_hash,
+              fee: entry.fee,
+              weight: entry.weight,
+            },
+          )
+            .into_response(),
+        );
+      }
+      // CAT-21 😺 - END
 
       match media {
         Media::Audio => Ok(
@@ -1768,7 +2014,24 @@ impl Server {
 
         let properties = inscription.properties();
 
+        // CAT-21 😺 - START
+        let (block_hash, weight) = if server_config.index_cat21 {
+          let bh = index
+            .block_hash(Some(info.height))?
+            .map(|h| h.to_string())
+            .unwrap_or_default();
+          let w = index
+            .get_inscription_entry(info.id)?
+            .map(|e| e.weight)
+            .unwrap_or(0);
+          (bh, w)
+        } else {
+          (String::new(), 0)
+        };
+        // CAT-21 😺 - END
+
         InscriptionHtml {
+          block_hash, // CAT-21 😺
           chain: server_config.chain,
           charms: Charm::Vindicated.unset(info.charms.iter().fold(0, |mut acc, charm| {
             charm.set(&mut acc);
@@ -1779,6 +2042,7 @@ impl Server {
           fee: info.fee,
           height: info.height,
           id: info.id,
+          index_cat21: server_config.index_cat21, // CAT-21 😺
           inscription,
           next: info.next,
           number: info.number,
@@ -1790,6 +2054,7 @@ impl Server {
           sat: info.sat,
           satpoint: info.satpoint,
           timestamp: Utc.timestamp_opt(info.timestamp, 0).unwrap(),
+          weight, // CAT-21 😺
         }
         .page(server_config)
         .into_response()
@@ -2043,6 +2308,13 @@ impl Server {
 
       let next = more.then_some(page_index + 1);
 
+      let last = {
+        let status = index.status(server_config.json_api_enabled)?;
+        let last_page = status.inscriptions.saturating_sub(1) / 100;
+        let last_page = u32::try_from(last_page).unwrap_or(u32::MAX);
+        (last_page > page_index).then_some(last_page)
+      };
+
       Ok(if accept_json {
         Json(api::Inscriptions {
           ids: inscriptions,
@@ -2053,6 +2325,7 @@ impl Server {
       } else {
         InscriptionsHtml {
           inscriptions,
+          last,
           next,
           prev,
         }
@@ -9056,3 +9329,101 @@ next
     );
   }
 }
+
+// CAT-21 😺 - START
+#[cfg(test)]
+mod cat21_tests {
+  use super::Server;
+
+  const PLACEHOLDER: &str = "i_n_s_c_r_i_p_t_i_o_n";
+
+  #[test]
+  fn protect_field_json_exact_name() {
+    let text = r#"{"name":"inscription","number":123}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"{{"name":"{PLACEHOLDER}","number":123}}"#)
+    );
+  }
+
+  #[test]
+  fn protect_field_json_substring() {
+    let text = r#"{"name":"xxinscriptionyy","number":123}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"{{"name":"xx{PLACEHOLDER}yy","number":123}}"#)
+    );
+  }
+
+  #[test]
+  fn protect_field_json_no_match() {
+    let text = r#"{"name":"normalname","number":123}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(result, text);
+  }
+
+  #[test]
+  fn protect_field_html_dd() {
+    let text = "<dt>name</dt><dd>inscription</dd><dt>cycle</dt>";
+    let result = Server::protect_field(text, "<dt>name</dt><dd>", "</dd>", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!("<dt>name</dt><dd>{PLACEHOLDER}</dd><dt>cycle</dt>")
+    );
+  }
+
+  #[test]
+  fn protect_field_sat_url() {
+    let text = r#"<a href=/sat/inscription">"#;
+    let result = Server::protect_field(text, "/sat/", "\"", PLACEHOLDER);
+    assert_eq!(result, format!(r#"<a href=/sat/{PLACEHOLDER}">"#));
+  }
+
+  #[test]
+  fn protect_field_full_roundtrip() {
+    // Simulate the full protect → replace → restore cycle
+    let text = r#"{"name":"inscription","inscriptions":["abc"]}"#;
+    let text = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    let text = text
+      .replace("Inscription", "Cat")
+      .replace("inscription", "cat")
+      .replace(PLACEHOLDER, "inscription");
+    assert_eq!(text, r#"{"name":"inscription","cats":["abc"]}"#);
+  }
+
+  #[test]
+  fn protect_field_roundtrip_with_substring() {
+    let text = r#"{"name":"abcinscriptionxyz","inscription_count":5}"#;
+    let text = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    let text = text
+      .replace("Inscription", "Cat")
+      .replace("inscription", "cat")
+      .replace(PLACEHOLDER, "inscription");
+    assert_eq!(text, r#"{"name":"abcinscriptionxyz","cat_count":5}"#);
+  }
+
+  #[test]
+  fn protect_field_multiple_occurrences() {
+    // Two /sat/ links on the same page, both containing "inscription"
+    let text = r#"<a href=/sat/inscription">first</a> <a href=/sat/inscription">second</a>"#;
+    let result = Server::protect_field(text, "/sat/", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"<a href=/sat/{PLACEHOLDER}">first</a> <a href=/sat/{PLACEHOLDER}">second</a>"#)
+    );
+  }
+
+  #[test]
+  fn protect_field_multiple_different_values() {
+    // Two name fields, only one contains "inscription"
+    let text = r#"{"name":"hello","x":1},{"name":"inscription","x":2}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"{{"name":"hello","x":1}},{{"name":"{PLACEHOLDER}","x":2}}"#)
+    );
+  }
+}
+// CAT-21 😺 - END

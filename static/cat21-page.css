@@ -116,7 +116,7 @@ input[type=text]::placeholder {
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* ── Mobile: shrink nav to prevent wrapping ── */
+/* ── Mobile overrides ── */
 @media (max-width: 38rem) {
   nav {
     font-size: 0.8rem;
@@ -130,11 +130,7 @@ input[type=text]::placeholder {
   nav a[title="cats"] img.icon {
     height: 2rem;
   }
-}
-
-/* ── Block list: keep numbers inside content box on mobile ── */
-@media (max-width: 38rem) {
-  .block-list {
+  ol, ul {
     list-style-position: inside;
   }
 }

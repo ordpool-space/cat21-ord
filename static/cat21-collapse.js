@@ -6,7 +6,7 @@
 // We can't remove the original because its resize function is scoped inside
 // a DOMContentLoaded closure with no external reference.
 addEventListener("DOMContentLoaded", () => {
-  const MULTIPLIER = 1.5;
+  const MULTIPLIER = 1.15;
   const ctx = document.createElement('canvas').getContext('2d');
 
   function cat21Resize() {

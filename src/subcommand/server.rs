@@ -685,9 +685,7 @@ impl Server {
       && let Ok(loc) = location.to_str()
       && loc.contains("/inscription")
     {
-      let new_loc = loc
-        .replace("/inscriptions", "/cats")
-        .replace("/inscription/", "/cat/");
+      let new_loc = loc.replace("/inscription", "/cat");
       if let Ok(val) = HeaderValue::from_str(&new_loc) {
         let mut response = response;
         response.headers_mut().insert(header::LOCATION, val);
@@ -783,8 +781,10 @@ impl Server {
       text
     };
 
-    // Body size changed after text replacement — remove stale Content-Length
-    parts.headers.remove(header::CONTENT_LENGTH);
+    // Update Content-Length to match the new body size after text replacement
+    parts
+      .headers
+      .insert(header::CONTENT_LENGTH, HeaderValue::from(text.len()));
 
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
   }

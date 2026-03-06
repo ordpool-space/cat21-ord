@@ -8,7 +8,7 @@ const fee = Number(container.dataset.fee);
 const weight = Number(container.dataset.weight);
 
 const vsize = weight / 4;
-const feeRate = fee / vsize;
+const feeRate = vsize > 0 ? fee / vsize : 0;
 const hash = createCatHash(txid, blockHash);
 const { traits } = MooncatParser.parseAndGenerateSvg(hash, feeRate);
 

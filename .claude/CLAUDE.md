@@ -58,7 +58,7 @@ All cat21 display transformations are centralized in two axum middlewares in `se
 - **CSS/font**: Injects `cat21-page.css` stylesheet and `public-pixel.woff2` font preload after `modern-normalize.css`
 - **Runes**: Strips `<h2>0 Runes</h2>` (always 0 in cat21 mode)
 - **Transaction page**: Adds line break after "Transaction", shows txid, adds ordpool.space link
-- **Content-Length**: Removed after body replacement (recomputed by CompressionLayer)
+- **Content-Length**: Recalculated after body replacement to match the new body size
 
 **Design principle**: Keep templates upstream-clean. Never add `%% if index_cat21` conditionals for display-only changes — put them in the middleware instead. The only exception is `inscription.html`'s traits section, which needs dynamic data attributes (`txid`, `block_hash`, `fee`, `weight`) that only the template has access to.
 

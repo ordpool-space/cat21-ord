@@ -482,4 +482,31 @@ fn two_cat21_transactions_in_same_block() {
   ord.assert_response_regex(format!("/inscription/{id_0}"), r".*<h1>Cat 0</h1>.*");
   ord.assert_response_regex(format!("/inscription/{id_1}"), r".*<h1>Cat 1</h1>.*");
 }
+
+#[test]
+fn cats_paginated_url_rewrites_to_inscriptions() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  // /cats/0 should serve the same content as /inscriptions/0
+  ord.assert_response_regex("/cats/0", r".*<h1>All Cats</h1>.*");
+}
+
+#[test]
+fn index_cat21_and_no_index_inscriptions_are_mutually_exclusive() {
+  CommandBuilder::new("--index-cat21 --no-index-inscriptions settings")
+    .stderr_regex(".*--index-cat21 and --no-index-inscriptions are mutually exclusive.*")
+    .expected_exit_code(1)
+    .run_and_extract_stdout();
+}
 // CAT-21 😺 - END

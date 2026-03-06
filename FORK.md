@@ -58,7 +58,7 @@ All CAT-21 display transformations use two axum middlewares. Templates render pl
 - **Injects** `cat21-page.css` + `public-pixel.woff2` font
 - **Strips** `0 Runes` heading
 - **Transaction page**: Adds line break after "Transaction", shows txid, adds ordpool.space link
-- **Content-Length**: Removed after body replacement (stale after text transforms; recomputed by CompressionLayer)
+- **Content-Length**: Recalculated after body replacement to match the new body size
 
 ### JSON API
 
@@ -74,7 +74,7 @@ The terminology replacement also applies to JSON responses (`application/json`).
 - `static/cat21-page.css` — orange theme, Public Pixel font, nav styling
 - `static/cat21-traits.css` + `cat21-traits.js` — trait display on inscription page
 - `static/cat21.js` — cat SVG generation (from ordpool-parser)
-- `static/cat21-logo.svg`, `static/images.svg`, `static/ordpool-logo.png` — nav icons
+- `static/cat21-logo.svg`, `static/cats.svg`, `static/ordpool-logo.png` — nav icons (middleware swaps `images.svg` → `cats.svg`)
 - `static/preview-cat21.css` — orange background for cat previews
 
 ## Inspiration

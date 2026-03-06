@@ -748,6 +748,8 @@ impl Server {
           "<link rel=stylesheet href=/static/modern-normalize.css>",
           "<link rel=stylesheet href=/static/modern-normalize.css>\n    <link rel=preload href=/static/public-pixel.woff2 as=font type=font/woff2 crossorigin>\n    <link rel=stylesheet href=/static/cat21-page.css>",
         )
+        // Nav: swap gallery icon with cat composite
+        .replace("/static/images.svg", "/static/cats.svg")
         // Nav: ordpool link
         .replace(
           "<a href=https://docs.ordinals.com/ title=handbook>",

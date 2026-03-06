@@ -94,6 +94,11 @@ dt {
   color: rgba(0, 0, 0, 0.5);
 }
 
+/* ── Block list: prevent number clipping from upstream overflow:hidden ── */
+.block-list {
+  overflow: visible;
+}
+
 /* ── Blocks, thumbnails ── */
 .block {
   background-color: rgba(0, 0, 0, 0.15);

@@ -3,9 +3,9 @@
 // Public Pixel the result is too wide — text overflows the container because
 // list markers, padding etc. aren't accounted for. This script re-runs the
 // same logic with a 0.8x capacity multiplier so text fits cleanly.
-// Note: This executes right after index.js's resize(), so collapse runs twice.
-// We can't remove the original because its resize function is scoped inside
-// a DOMContentLoaded closure with no external reference.
+// Note: index.js's resize() also runs on DOMContentLoaded and window resize,
+// but we can't remove it (scoped inside a closure). Our fonts.ready handler
+// overwrites its results, so the visual double-run is brief.
 addEventListener("DOMContentLoaded", () => {
   const MULTIPLIER = 0.8;
   const ctx = document.createElement('canvas').getContext('2d');
@@ -31,9 +31,9 @@ addEventListener("DOMContentLoaded", () => {
   }
 
   addEventListener('resize', cat21Resize);
-  cat21Resize();
 
-  // Re-run after Public Pixel font loads — canvas.measureText uses the
-  // fallback font if the webfont isn't ready yet, producing wrong capacity.
+  // Only run after font is ready — avoids a wasted run on DOMContentLoaded
+  // when the font isn't loaded yet (canvas would measure with fallback font).
+  // document.fonts.ready resolves immediately if the font is already cached.
   document.fonts.ready.then(cat21Resize);
 });

@@ -409,4 +409,77 @@ fn cat21_json_block_uses_cat_terminology() {
     "JSON /block/ response should contain 'cats', got: {body}"
   );
 }
+
+#[test]
+fn cat21_sat_name_preserved_in_json() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21", "--index-sats"]);
+
+  // Sat named "inscription" (sat #749485600560504)
+  let response = ord.json_request("/sat/749485600560504");
+  assert_eq!(response.status(), StatusCode::OK);
+
+  let body = response.text().unwrap();
+  // The sat name must be "inscription", not "cat"
+  assert!(
+    body.contains("\"name\":\"inscription\""),
+    "sat name should be 'inscription', got: {body}"
+  );
+  // But the field name should still be renamed
+  assert!(
+    !body.contains("\"inscriptions\""),
+    "field name 'inscriptions' should be renamed to 'cats', got: {body}"
+  );
+}
+
+#[test]
+fn cat21_sat_name_preserved_in_html() {
+  let core = mockcore::spawn();
+  core.mine_blocks(1);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21", "--index-sats"]);
+
+  // Sat named "inscription"
+  ord.assert_response_regex(
+    "/sat/749485600560504",
+    r".*<dt>name</dt><dd>inscription</dd>.*",
+  );
+}
+
+#[test]
+fn two_cat21_transactions_in_same_block() {
+  let core = mockcore::spawn();
+  core.mine_blocks(2);
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21"]);
+
+  // Two cat txs in the same block (using different UTXOs)
+  let cat_txid_0 = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(1, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+  let cat_txid_1 = core.broadcast_tx(TransactionTemplate {
+    inputs: &[(2, 0, 0, Witness::new())],
+    lock_time: 21,
+    ..default()
+  });
+
+  core.mine_blocks(1);
+
+  let id_0 = InscriptionId {
+    txid: cat_txid_0,
+    index: 0,
+  };
+  let id_1 = InscriptionId {
+    txid: cat_txid_1,
+    index: 0,
+  };
+
+  // Both should be indexed with sequential numbers
+  ord.assert_response_regex(format!("/inscription/{id_0}"), r".*<h1>Cat 0</h1>.*");
+  ord.assert_response_regex(format!("/inscription/{id_1}"), r".*<h1>Cat 1</h1>.*");
+}
 // CAT-21 😺 - END

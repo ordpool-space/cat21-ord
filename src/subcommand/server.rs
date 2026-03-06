@@ -679,6 +679,22 @@ impl Server {
       return Ok(response);
     }
 
+    // Rewrite /inscription/ → /cat/ in redirect Location headers so the
+    // browser URL bar shows /cat/ instead of /inscription/
+    if let Some(location) = response.headers().get(header::LOCATION)
+      && let Ok(loc) = location.to_str()
+      && loc.contains("/inscription")
+    {
+      let new_loc = loc
+        .replace("/inscriptions", "/cats")
+        .replace("/inscription/", "/cat/");
+      if let Ok(val) = HeaderValue::from_str(&new_loc) {
+        let mut response = response;
+        response.headers_mut().insert(header::LOCATION, val);
+        return Ok(response);
+      }
+    }
+
     let content_type = response
       .headers()
       .get(header::CONTENT_TYPE)
@@ -693,17 +709,29 @@ impl Server {
       return Ok(response);
     }
 
-    let (parts, body) = response.into_parts();
+    let (mut parts, body) = response.into_parts();
     let bytes = axum::body::to_bytes(body, usize::MAX)
       .await
       .map_err(|err| anyhow!(err))?;
 
     let text = String::from_utf8_lossy(&bytes);
 
+    // Protect sat name fields from terminology replacement. Sat names are base-26
+    // encoded numbers (e.g. "inscription") — data, not terminology. We temporarily
+    // replace "inscription" with a placeholder inside name fields, do the blanket
+    // replacement, then restore.
+    const PLACEHOLDER: &str = "i_n_s_c_r_i_p_t_i_o_n";
+    let text = Self::protect_field(&text, "\"name\":\"", "\"", PLACEHOLDER);
+    let text = Self::protect_field(&text, "<dt>name</dt><dd>", "</dd>", PLACEHOLDER);
+    let text = Self::protect_field(&text, "/sat/", "\"", PLACEHOLDER);
+    let text = Self::protect_field(&text, "/sat/", "<", PLACEHOLDER);
+    let text = Self::protect_field(&text, "/sat/", "'", PLACEHOLDER);
+
     // Terminology: inscription → cat (applies to HTML, CSS, and JSON)
     let text = text
       .replace("Inscription", "Cat")
-      .replace("inscription", "cat");
+      .replace("inscription", "cat")
+      .replace(PLACEHOLDER, "inscription");
 
     // HTML/CSS-only transformations
     let text = if is_html_or_css {
@@ -755,7 +783,41 @@ impl Server {
       text
     };
 
+    // Body size changed after text replacement — remove stale Content-Length
+    parts.headers.remove(header::CONTENT_LENGTH);
+
     Ok(Response::from_parts(parts, axum::body::Body::from(text)))
+  }
+
+  /// Finds all values between `prefix` and `suffix` in `text`, and replaces
+  /// "inscription" with `placeholder` inside those values to protect them from
+  /// the blanket terminology replacement.
+  fn protect_field(text: &str, prefix: &str, suffix: &str, placeholder: &str) -> String {
+    let mut result = text.to_string();
+    let mut search_from = 0;
+    while let Some(start) = result[search_from..].find(prefix) {
+      let abs_start = search_from + start;
+      let val_start = abs_start + prefix.len();
+      if let Some(end) = result[val_start..].find(suffix) {
+        let val = &result[val_start..val_start + end];
+        if val.contains("inscription") {
+          let protected = val.replace("inscription", placeholder);
+          result = format!(
+            "{}{}{}{}",
+            &result[..abs_start],
+            prefix,
+            protected,
+            &result[val_start + end..],
+          );
+          search_from = abs_start + prefix.len() + protected.len();
+        } else {
+          search_from = val_start + end;
+        }
+      } else {
+        break;
+      }
+    }
+    result
   }
   // CAT-21 😺 - END
 
@@ -9245,3 +9307,101 @@ next
     );
   }
 }
+
+// CAT-21 😺 - START
+#[cfg(test)]
+mod cat21_tests {
+  use super::Server;
+
+  const PLACEHOLDER: &str = "i_n_s_c_r_i_p_t_i_o_n";
+
+  #[test]
+  fn protect_field_json_exact_name() {
+    let text = r#"{"name":"inscription","number":123}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"{{"name":"{PLACEHOLDER}","number":123}}"#)
+    );
+  }
+
+  #[test]
+  fn protect_field_json_substring() {
+    let text = r#"{"name":"xxinscriptionyy","number":123}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"{{"name":"xx{PLACEHOLDER}yy","number":123}}"#)
+    );
+  }
+
+  #[test]
+  fn protect_field_json_no_match() {
+    let text = r#"{"name":"normalname","number":123}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(result, text);
+  }
+
+  #[test]
+  fn protect_field_html_dd() {
+    let text = "<dt>name</dt><dd>inscription</dd><dt>cycle</dt>";
+    let result = Server::protect_field(text, "<dt>name</dt><dd>", "</dd>", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!("<dt>name</dt><dd>{PLACEHOLDER}</dd><dt>cycle</dt>")
+    );
+  }
+
+  #[test]
+  fn protect_field_sat_url() {
+    let text = r#"<a href=/sat/inscription">"#;
+    let result = Server::protect_field(text, "/sat/", "\"", PLACEHOLDER);
+    assert_eq!(result, format!(r#"<a href=/sat/{PLACEHOLDER}">"#));
+  }
+
+  #[test]
+  fn protect_field_full_roundtrip() {
+    // Simulate the full protect → replace → restore cycle
+    let text = r#"{"name":"inscription","inscriptions":["abc"]}"#;
+    let text = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    let text = text
+      .replace("Inscription", "Cat")
+      .replace("inscription", "cat")
+      .replace(PLACEHOLDER, "inscription");
+    assert_eq!(text, r#"{"name":"inscription","cats":["abc"]}"#);
+  }
+
+  #[test]
+  fn protect_field_roundtrip_with_substring() {
+    let text = r#"{"name":"abcinscriptionxyz","inscription_count":5}"#;
+    let text = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    let text = text
+      .replace("Inscription", "Cat")
+      .replace("inscription", "cat")
+      .replace(PLACEHOLDER, "inscription");
+    assert_eq!(text, r#"{"name":"abcinscriptionxyz","cat_count":5}"#);
+  }
+
+  #[test]
+  fn protect_field_multiple_occurrences() {
+    // Two /sat/ links on the same page, both containing "inscription"
+    let text = r#"<a href=/sat/inscription">first</a> <a href=/sat/inscription">second</a>"#;
+    let result = Server::protect_field(text, "/sat/", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"<a href=/sat/{PLACEHOLDER}">first</a> <a href=/sat/{PLACEHOLDER}">second</a>"#)
+    );
+  }
+
+  #[test]
+  fn protect_field_multiple_different_values() {
+    // Two name fields, only one contains "inscription"
+    let text = r#"{"name":"hello","x":1},{"name":"inscription","x":2}"#;
+    let result = Server::protect_field(text, "\"name\":\"", "\"", PLACEHOLDER);
+    assert_eq!(
+      result,
+      format!(r#"{{"name":"hello","x":1}},{{"name":"{PLACEHOLDER}","x":2}}"#)
+    );
+  }
+}
+// CAT-21 😺 - END

@@ -9,6 +9,8 @@ CAT-21 cats are not real inscriptions — there's no `OP_FALSE OP_IF` envelope i
 
 Without the flag, ord behaves 100% like upstream. All existing tests pass. With `--index-cat21`, the indexer switches to CAT-21 mode: real inscriptions are completely ignored (not even parsed), and only `nLockTime=21` transactions are indexed.
 
+**Important**: `--index-cat21` and `--no-index-inscriptions` are mutually exclusive. Cats are indexed as inscriptions, so disabling inscriptions would disable cats too. The binary will error if both are set.
+
 ### 1. CLI flag — `src/options.rs` + `src/settings.rs`
 
 The `--index-cat21` flag (or `ORD_INDEX_CAT21` env var) activates CAT-21 indexing. When active, `first_inscription_height()` returns `first_cat21_height` (block 815855) instead of the normal inscription start height.
@@ -20,6 +22,10 @@ When `--index-cat21` is active, `from_transaction()` is bypassed entirely. Inste
 ### 3. Start height — `src/chain.rs`
 
 `first_cat21_height()` defines block 815855 — the genesis cat block (first `nLockTime=21` transaction in Bitcoin history). This prevents ord from scanning earlier blocks.
+
+### 4. Database format — `src/index/entry.rs`
+
+`InscriptionEntryValue` adds a `weight: u64` field (10th tuple element) for storing the transaction's weight. This changes the on-disk redb format. A cat21-ord index is **not compatible** with upstream ord and vice versa. Always build a fresh index when switching between them.
 
 ## What Ord Gives Us For Free
 
@@ -37,19 +43,26 @@ No translation between inscription numbers and cat numbers is needed — they ar
 
 ## Server: Display Layer + Routes — `src/subcommand/server.rs`
 
-### `cat21_text_layer` Middleware
+### Two-Middleware Architecture
 
-All display transformations are centralized in one axum middleware. Templates render plain upstream content; the middleware transforms HTML and CSS responses:
+All CAT-21 display transformations use two axum middlewares. Templates render plain upstream content; the middlewares handle all renaming and URL mapping:
 
-- `Inscription` → `Cat` / `inscription` → `cat` (text + CSS selectors)
-- Home page title → `CAT-21`
-- Nav superscript → `CAT-21` + genesis cat logo link
-- Injects `cat21-page.css` + `public-pixel.woff2` font
-- Strips `0 Runes` heading
+**`cat21_url_rewrite` (inbound)** — Rewrites `/cat/` → `/inscription/` and `/cats` → `/inscriptions` URLs before route matching. Applied via an outer `Router` wrapping the main one with `fallback_service`, because `Router::layer()` runs AFTER route matching and can't rewrite URLs in time. No separate route handlers needed — zero diff with upstream routes.
 
-### Cat Routes
+**`cat21_text_layer` (outbound)** — Transforms response bodies:
 
-`/cat/{id}` and `/cats` routes are added alongside the original `/inscription/` and `/inscriptions` routes. Both work — the original routes are untouched for zero diff with upstream.
+- **Terminology**: `Inscription` → `Cat` / `inscription` → `cat` (HTML, CSS, and JSON)
+- **Sat name protection**: Sat names are base-26 encoded numbers (e.g., the sat literally named "inscription"). The `protect_field` helper temporarily replaces "inscription" with a placeholder inside name fields and `/sat/` URLs before the blanket replacement, then restores it afterward. This prevents data corruption.
+- **Home page title** → `CAT-21`
+- **Nav superscript** → `CAT-21` + genesis cat logo link
+- **Injects** `cat21-page.css` + `public-pixel.woff2` font
+- **Strips** `0 Runes` heading
+- **Transaction page**: Adds line break after "Transaction", shows txid, adds ordpool.space link
+- **Content-Length**: Removed after body replacement (stale after text transforms; recomputed by CompressionLayer)
+
+### JSON API
+
+The terminology replacement also applies to JSON responses (`application/json`). Field names are renamed: `"inscriptions"` → `"cats"`, `"inscription_count"` → `"cat_count"`, etc. Clients consuming the JSON API should use the cat terminology, not standard ord field names.
 
 ### Cat Preview + Traits
 
@@ -61,7 +74,7 @@ All display transformations are centralized in one axum middleware. Templates re
 - `static/cat21-page.css` — orange theme, Public Pixel font, nav styling
 - `static/cat21-traits.css` + `cat21-traits.js` — trait display on inscription page
 - `static/cat21.js` — cat SVG generation (from ordpool-parser)
-- `static/cat21-logo.svg`, `static/ordpool-logo.png` — nav icons
+- `static/cat21-logo.svg`, `static/images.svg`, `static/ordpool-logo.png` — nav icons
 - `static/preview-cat21.css` — orange background for cat previews
 
 ## Inspiration

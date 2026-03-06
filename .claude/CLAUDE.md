@@ -50,12 +50,15 @@ All cat21 display transformations are centralized in two axum middlewares in `se
 
 **`cat21_url_rewrite` (inbound)** — Rewrites `/cat/` → `/inscription/` and `/cats` → `/inscriptions` URLs before route matching. Applied via an outer `Router` wrapping the main one with `fallback_service`, because `Router::layer()` runs AFTER route matching and can't rewrite URLs in time.
 
-**`cat21_text_layer` (outbound)** — Transforms HTML and CSS response bodies when `--index-cat21` is active:
-- **Terminology**: `Inscription` → `Cat`, `inscription` → `cat` (applies to both HTML text and CSS class selectors like `.inscription` → `.cat`)
+**`cat21_text_layer` (outbound)** — Transforms HTML, CSS, and JSON response bodies when `--index-cat21` is active:
+- **Terminology**: `Inscription` → `Cat`, `inscription` → `cat` (applies to HTML text, CSS class selectors like `.inscription` → `.cat`, and JSON field names like `"inscriptions"` → `"cats"`)
+- **Sat name protection**: The `protect_field` helper prevents data corruption for sat names that contain "inscription" (sat names are base-26 encoded numbers). Before the blanket replacement, it scans for "inscription" inside `"name":"..."` JSON fields, `<dt>name</dt><dd>...</dd>` HTML, and `/sat/...` URLs, temporarily replacing with a placeholder that's restored afterward. Handles multiple occurrences.
 - **Home title**: `<title>Ordinals</title>` → `<title>CAT-21</title>`
 - **Nav**: Replaces `<sup>beta</sup>` with `<sup>CAT-21</sup>` and injects the genesis cat logo link
 - **CSS/font**: Injects `cat21-page.css` stylesheet and `public-pixel.woff2` font preload after `modern-normalize.css`
 - **Runes**: Strips `<h2>0 Runes</h2>` (always 0 in cat21 mode)
+- **Transaction page**: Adds line break after "Transaction", shows txid, adds ordpool.space link
+- **Content-Length**: Removed after body replacement (recomputed by CompressionLayer)
 
 **Design principle**: Keep templates upstream-clean. Never add `%% if index_cat21` conditionals for display-only changes — put them in the middleware instead. The only exception is `inscription.html`'s traits section, which needs dynamic data attributes (`txid`, `block_hash`, `fee`, `weight`) that only the template has access to.
 
@@ -77,6 +80,7 @@ Once cats appear as inscriptions:
 - `--index-cat21` — REQUIRED (enables CAT-21 indexing mode)
 - `--index-sats` — REQUIRED (sat tracking for ordinal theory)
 - `--index-addresses` — recommended (address lookups)
+- `--no-index-inscriptions` — INCOMPATIBLE with `--index-cat21` (cats ARE inscriptions)
 - Do NOT use `--no-index-inscriptions` — cats ARE inscriptions in this approach
 
 ### Fork Management

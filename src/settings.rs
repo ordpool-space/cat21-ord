@@ -346,7 +346,7 @@ impl Settings {
       None => data_dir.join("index.redb"),
     };
 
-    Ok(Self {
+    let settings = Self {
       bitcoin_data_dir: Some(bitcoin_data_dir),
       bitcoin_rpc_limit: Some(self.bitcoin_rpc_limit.unwrap_or(12)),
       bitcoin_rpc_password: self.bitcoin_rpc_password,
@@ -387,7 +387,17 @@ impl Settings {
       server_password: self.server_password,
       server_url: self.server_url,
       server_username: self.server_username,
-    })
+    };
+
+    // CAT-21 😺 - START
+    if settings.index_cat21 && settings.no_index_inscriptions {
+      bail!(
+        "--index-cat21 and --no-index-inscriptions are mutually exclusive: cats are indexed as inscriptions"
+      );
+    }
+    // CAT-21 😺 - END
+
+    Ok(settings)
   }
 
   pub fn default_data_dir() -> Result<PathBuf> {

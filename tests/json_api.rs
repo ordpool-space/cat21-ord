@@ -23,6 +23,7 @@ fn get_sat_without_sat_index() {
   pretty_assert_eq!(
     sat_json,
     api::Sat {
+      cat_numbers: None,
       address: None,
       number: 2099999997689999,
       decimal: "6929999.0".into(),
@@ -65,6 +66,7 @@ fn get_sat_with_inscription_and_sat_index() {
   pretty_assert_eq!(
     sat_json,
     api::Sat {
+      cat_numbers: None,
       address: None,
       number: 50 * COIN_VALUE,
       decimal: "1.0".into(),
@@ -124,6 +126,7 @@ fn get_sat_with_inscription_on_common_sat_and_more_inscriptions() {
   pretty_assert_eq!(
     sat_json,
     api::Sat {
+      cat_numbers: None,
       address: None,
       number: 3 * 50 * COIN_VALUE + 1,
       decimal: "3.1".into(),
@@ -186,7 +189,10 @@ fn get_inscription() {
       sat: Some(Sat(50 * COIN_VALUE)),
       satpoint: SatPoint::from_str(&format!("{}:{}:{}", reveal, 0, 0)).unwrap(),
       timestamp: 2,
-      metaprotocol: None
+      metaprotocol: None,
+      weight: inscription_json.weight,               // CAT-21 😺
+      size: inscription_json.size,                   // CAT-21 😺
+      minted_by: inscription_json.minted_by.clone(), // CAT-21 😺
     }
   )
 }
@@ -250,7 +256,10 @@ fn get_inscription_with_metaprotocol_and_properties() {
       sat: Some(Sat(50 * COIN_VALUE)),
       satpoint: SatPoint::from_str(&format!("{}:{}:{}", output.reveal, 0, 0)).unwrap(),
       timestamp: 2,
-      metaprotocol: Some("foo".to_string())
+      metaprotocol: Some("foo".to_string()),
+      weight: inscription_json.weight,               // CAT-21 😺
+      size: inscription_json.size,                   // CAT-21 😺
+      minted_by: inscription_json.minted_by.clone(), // CAT-21 😺
     }
   );
 }

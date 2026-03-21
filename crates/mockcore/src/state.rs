@@ -254,7 +254,7 @@ impl State {
 
     let mut tx = Transaction {
       version: Version(2),
-      lock_time: LockTime::ZERO,
+      lock_time: LockTime::from_consensus(template.lock_time), // CAT-21 😺
       input,
       output: (0..template.outputs)
         .map(|i| TxOut {

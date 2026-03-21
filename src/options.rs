@@ -62,6 +62,13 @@ pub struct Options {
   pub(crate) index_sats: bool,
   #[arg(long, help = "Store transactions in index.")]
   pub(crate) index_transactions: bool,
+  // CAT-21 😺 - START
+  #[arg(
+    long,
+    help = "Track location of CAT-21 cats (nLockTime=21 transactions)."
+  )]
+  pub(crate) index_cat21: bool,
+  // CAT-21 😺 - END
   #[arg(long, help = "Run in integration test mode.")]
   pub(crate) integration_test: bool,
   #[clap(long, short, long, help = "Specify output format. [default: json]")]

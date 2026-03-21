@@ -15,6 +15,18 @@
 <div>❯</div>
 %% }
 </div>
+%% if self.index_cat21 && self.number == 0 {
+<p>
+The Genesis Cat. Revealed at block height 824,205.
+The first Bitcoin transaction with nLockTime 21 in all of Bitcoin's long history. The first feline ever minted.
+In ancient Egypt, she would have sat beside Bastet herself,
+adorned with gold, guarded by priests, worshipped as divine.
+The <a href="https://github.com/ordpool-space/cat21">CAT-21 protocol</a>
+was not written to summon her. It was written to capture a glimpse of her greatness.
+The most magnificent cat that will ever exist.
+All others are merely echoes of her perfection. Meow!
+</p>
+%% }
 <dl>
 %% if !&self.parents.is_empty() {
   <dt>parents</dt>
@@ -86,6 +98,12 @@
     {{ Trusted(MetadataHtml(&burn_metadata)) }}
   </dd>
 %% }
+%% if self.index_cat21 {
+%%   if let Some(ref minted_by) = self.minted_by {
+  <dt>minted by</dt>
+  <dd><a class=collapse href=/address/{{minted_by}}>{{ minted_by }}</a></dd>
+%%   }
+%% }
 %% if let Some(output) = &self.output {
 %%   if let Ok(address) = self.chain.address_from_script(&output.script_pubkey ) {
   <dt>address</dt>
@@ -93,6 +111,14 @@
 %%   }
   <dt>value</dt>
   <dd>{{ output.value.to_sat() }}</dd>
+%% }
+%% if self.index_cat21 {
+  <dt>fee rate</dt>
+  <dd>{{ format!("{:.1}", self.fee as f64 / (self.weight as f64 / 4.0)) }} sat/vB</dd>
+  <dt>weight</dt>
+  <dd>{{ self.weight }} WU</dd>
+  <dt>size</dt>
+  <dd>{{ self.size }} bytes</dd>
 %% }
 %% if let Some(sat) = self.sat {
   <dt>sat</dt>
@@ -143,3 +169,13 @@
   <dt>ethereum teleburn address</dt>
   <dd class=collapse>{{ teleburn::Ethereum::from(self.id) }}</dd>
 </dl>
+%% if self.index_cat21 {
+<div id="cat21-traits"
+  data-txid={{self.id.txid}}
+  data-block-hash={{self.block_hash}}
+  data-fee={{self.fee}}
+  data-weight={{self.weight}}>
+</div>
+<link rel=stylesheet href=/static/cat21-traits.css>
+<script src=/static/cat21-traits.js type=module defer></script>
+%% }

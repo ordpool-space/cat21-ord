@@ -162,6 +162,7 @@ pub fn spawn() -> Handle {
 pub struct TransactionTemplate<'a> {
   pub fee: u64,
   pub inputs: &'a [(usize, usize, usize, Witness)],
+  pub lock_time: u32, // CAT-21 😺
   pub op_return: Option<ScriptBuf>,
   pub op_return_index: Option<usize>,
   pub op_return_value: Option<u64>,
@@ -211,6 +212,7 @@ impl Default for TransactionTemplate<'_> {
     Self {
       fee: 0,
       inputs: &[],
+      lock_time: 0, // CAT-21 😺
       op_return: None,
       op_return_index: None,
       op_return_value: None,

@@ -119,6 +119,9 @@ pub struct Inscription {
   pub satpoint: SatPoint,
   pub timestamp: i64,
   pub value: Option<u64>,
+  pub weight: u64,               // CAT-21 😺
+  pub size: u64,                 // CAT-21 😺
+  pub minted_by: Option<String>, // CAT-21 😺 — address from mint tx's first output
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -155,6 +158,7 @@ pub struct RelativeInscriptionRecursive {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Inscriptions {
   pub ids: Vec<InscriptionId>,
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub more: bool,
   pub page_index: u32,
 }
@@ -217,6 +221,7 @@ impl Output {
 pub struct Sat {
   pub address: Option<String>,
   pub block: u32,
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub charms: Vec<Charm>,
   pub cycle: u32,
   pub decimal: String,
@@ -240,6 +245,7 @@ pub struct SatInscription {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SatInscriptions {
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub ids: Vec<InscriptionId>,
   pub more: bool,
   pub page: u64,
@@ -249,6 +255,7 @@ pub struct SatInscriptions {
 pub struct AddressInfo {
   pub outputs: Vec<OutPoint>,
   pub inscriptions: Option<Vec<InscriptionId>>,
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub sat_balance: u64,
   pub runes_balances: Option<Vec<(SpacedRune, Decimal, Option<char>)>>,
 }

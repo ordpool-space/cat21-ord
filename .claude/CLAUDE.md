@@ -20,6 +20,17 @@ cargo test
 # See the wiki for full setup: https://github.com/ordpool-space/cat21-ord/wiki
 ```
 
+### HARD RULE: Keep useful comments
+
+**Don't strip JSDoc or "why" inline comments under the banner of
+"simplification".** The text inside a comment can be trimmed (no
+bombast, no LLM-speak, no before-after history); the block itself
+stays. CAT-21 indexing rationale and the "this differs from upstream
+ord because…" notes around `// CAT-21 😺 - START` blocks are exactly
+the kind of comment a future reader (and the next upstream merge)
+cannot reconstruct from code alone. Full decision tree in the workspace
+`CLAUDE.md` HARD RULE "Keep useful comments (JSDoc AND inline 'why')".
+
 ### HARD RULE: Always lint before committing
 Run both `cargo fmt -- --check` AND `RUSTFLAGS="--deny warnings" cargo clippy --all --all-targets` before every commit. CI runs both checks with `--deny warnings` and will fail the build on any warning or formatting issue.
 

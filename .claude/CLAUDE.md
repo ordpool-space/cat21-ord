@@ -75,6 +75,12 @@ All cat21 display transformations are centralized in two axum middlewares in `se
 
 **Layer ordering**: The outbound `cat21_text_layer` must be listed before the `Extension` layers (innermost in the onion) so it can extract `ServerConfig`, but after `CompressionLayer` (so it processes uncompressed bodies). The inbound `cat21_url_rewrite` wraps the entire router from outside via `Router::new().fallback_service(inner).layer(...)`.
 
+### Wallet in cat mode (`ord --index-cat21 wallet …`)
+
+`cat21_text_layer` rewrites JSON too, which breaks ord's own wallet client: it is a serde consumer of the canonical ord schema, so a renamed `/status` (`blessed_inscriptions` → `blessed_cats`) fails to deserialise (every wallet command fetches `/status` in `WalletConstructor::build`). The fix is symmetric with the server: the same `--index-cat21` flag turns the wallet into a cat-aware client. `WalletConstructor`/`Wallet` read `settings.index_cat21()` and run every ord-server response body through `cat21_decat_json` (`src/wallet.rs`, the inverse of the server rename) before parsing, so the canonical `api::*` structs deserialise unchanged. Without the flag the wallet is vanilla ord and decat is a no-op.
+
+Caveat: the reverse is a blanket substring replace. The forward pass is safe on bech32 addresses because "inscription" has no `i`/`o`; the reverse is not, because "cat" is valid bech32, so a rare address containing the literal substring "cat" would be rewritten. The field names the wallet relies on reverse cleanly. See the `cat21_decat_json` doc comment.
+
 ### Routes
 
 No extra routes are needed. The inbound URL rewrite ensures `/cat/{id}` and `/cats` URLs map to the existing `/inscription/` and `/inscriptions` routes. The original routes are untouched — zero diff with upstream.

@@ -154,7 +154,11 @@ impl WalletConstructor {
       bail!("wallet failed get outputs: {}", response.text()?);
     }
 
-    let response_outputs = serde_json::from_str::<Vec<api::Output>>(&response.text()?)?;
+    // CAT-21 😺: un-cat the body so api::Output deserialises in cat mode
+    let response_outputs = serde_json::from_str::<Vec<api::Output>>(&cat21_decat_json(
+      self.settings.index_cat21(),
+      response.text()?,
+    ))?;
 
     ensure! {
       response_outputs.len() == outputs.len(),
@@ -188,7 +192,11 @@ impl WalletConstructor {
 
     let mut inscriptions = BTreeMap::new();
     let mut inscription_infos = BTreeMap::new();
-    for info in serde_json::from_str::<Vec<api::Inscription>>(&response.text()?)? {
+    // CAT-21 😺: un-cat the body so api::Inscription deserialises in cat mode
+    for info in serde_json::from_str::<Vec<api::Inscription>>(&cat21_decat_json(
+      self.settings.index_cat21(),
+      response.text()?,
+    ))? {
       inscriptions
         .entry(info.satpoint)
         .or_insert_with(Vec::new)
@@ -254,7 +262,11 @@ impl WalletConstructor {
       bail!("could not get status: {}", response.text()?)
     }
 
-    Ok(serde_json::from_str(&response.text()?)?)
+    // CAT-21 😺: un-cat the body so api::Status deserialises in cat mode
+    Ok(serde_json::from_str(&cat21_decat_json(
+      self.settings.index_cat21(),
+      response.text()?,
+    ))?)
   }
 
   pub fn get(&self, path: &str) -> Result<reqwest::blocking::Response> {

@@ -64,21 +64,35 @@ impl Sweep {
 
     let ord_client = wallet.ord_client();
 
-    let address_info = &ord_client
+    let address_info_body = ord_client
       .get(wallet.rpc_url().join(&format!("/address/{address}"))?)
       .send()
       .context("failed to get address info from ord server")?
-      .json::<api::AddressInfo>()
+      .text()
       .context("failed to get address info from ord server")?;
+
+    // CAT-21 😺: un-cat the body so api::AddressInfo deserialises in cat mode
+    let address_info: api::AddressInfo = serde_json::from_str(&crate::wallet::cat21_decat_json(
+      wallet.index_cat21(),
+      address_info_body,
+    ))
+    .context("failed to parse address info from ord server")?;
 
     let mut utxos = Vec::new();
     for outpoint in &address_info.outputs {
-      let output = ord_client
+      let output_body = ord_client
         .get(wallet.rpc_url().join(&format!("/output/{outpoint}"))?)
         .send()
         .context("failed to get output info from ord server")?
-        .json::<api::Output>()
+        .text()
         .context("failed to get output info from ord server")?;
+
+      // CAT-21 😺: un-cat the body so api::Output deserialises in cat mode
+      let output: api::Output = serde_json::from_str(&crate::wallet::cat21_decat_json(
+        wallet.index_cat21(),
+        output_body,
+      ))
+      .context("failed to parse output info from ord server")?;
 
       ensure! {
         output.runes.as_ref().unwrap().is_empty(),

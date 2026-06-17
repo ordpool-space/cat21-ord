@@ -684,4 +684,51 @@ fn cat21_address_json_includes_cat_numbers() {
     );
   }
 }
+
+#[test]
+fn cat21_wallet_in_cat_mode_reads_cat_server() {
+  let core = mockcore::spawn();
+
+  // A cat21-ord server renames inscription→cat in every response body.
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21", "--index-sats"]);
+
+  create_wallet(&core, &ord);
+
+  core.mine_blocks(1);
+
+  // `wallet balance` builds the wallet, which GETs /outputs, /inscriptions and
+  // /status from the cat server. Without --index-cat21 the wallet chokes on
+  // /status (the field blessed_inscriptions was renamed to blessed_cats). With
+  // --index-cat21 the wallet un-cats every response first, so ord's canonical
+  // api::* structs deserialise and the command succeeds.
+  let balance = CommandBuilder::new("--index-cat21 wallet balance")
+    .core(&core)
+    .ord(&ord)
+    .run_and_deserialize_output::<Balance>();
+
+  assert_eq!(balance.cardinal, 50 * COIN_VALUE);
+}
+
+#[test]
+fn wallet_without_cat21_flag_cannot_parse_cat_server_responses() {
+  let core = mockcore::spawn();
+
+  let ord = TestServer::spawn_with_args(&core, &["--index-cat21", "--index-sats"]);
+
+  create_wallet(&core, &ord);
+
+  core.mine_blocks(1);
+
+  // Same cat server, but this command omits --index-cat21, so it does NOT un-cat
+  // responses. Building the wallet GETs /status, whose blessed_inscriptions field
+  // the server renamed to blessed_cats, and serde fails. This is exactly the
+  // failure cat21_decat_json fixes; the test above runs the identical command
+  // with the flag and succeeds.
+  CommandBuilder::new("wallet balance")
+    .core(&core)
+    .ord(&ord)
+    .expected_exit_code(1)
+    .stderr_regex(".*blessed_inscriptions.*")
+    .run_and_extract_stdout();
+}
 // CAT-21 😺 - END

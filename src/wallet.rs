@@ -87,6 +87,32 @@ pub(crate) struct Wallet {
   settings: Settings,
 }
 
+// CAT-21 😺 - START
+/// The cat21-ord server renames inscription→cat / Inscription→Cat in every
+/// response body (see `Server::cat21_transform_text`). When the wallet runs in
+/// the same cat21 mode (`ord --index-cat21 wallet …`) it is the inverse
+/// consumer: it undoes that rename before serde parses the body, so ord's
+/// canonical `api::*` structs deserialise unchanged.
+///
+/// This mirrors the server's blanket substring replace. The forward pass is
+/// safe on encoded values because "inscription" can never occur in a bech32
+/// address (the charset has no `i`/`o`); the reverse is not perfectly safe,
+/// because "cat" can occur in a bech32 address. The JSON field names the wallet
+/// relies on (`blessed_inscriptions`, `inscriptions`, `inscription_count`, …)
+/// reverse cleanly; a rare address containing the literal substring "cat" would
+/// be rewritten. Acceptable for the wallet's use and recorded here so the
+/// limitation is not lost.
+pub(crate) fn cat21_decat_json(index_cat21: bool, body: String) -> String {
+  if index_cat21 {
+    body
+      .replace("Cat", "Inscription")
+      .replace("cat", "inscription")
+  } else {
+    body
+  }
+}
+// CAT-21 😺 - END
+
 impl Wallet {
   pub(crate) fn get_wallet_sat_ranges(&self) -> Result<Vec<(OutPoint, Vec<(u64, u64)>)>> {
     ensure!(
@@ -204,7 +230,7 @@ impl Wallet {
     &self,
     inscription_id: InscriptionId,
   ) -> Result<Option<api::Inscription>> {
-    let inscription = self
+    let body = self
       .ord_client
       .get(
         self
@@ -213,9 +239,13 @@ impl Wallet {
           .unwrap(),
       )
       .send()?
-      .json()?;
+      .text()?;
 
-    Ok(inscription)
+    // CAT-21 😺: un-cat the body so api::Inscription deserialises in cat mode
+    Ok(serde_json::from_str(&cat21_decat_json(
+      self.index_cat21(),
+      body,
+    ))?)
   }
 
   pub(crate) fn inscription_exists(&self, inscription_id: InscriptionId) -> Result<bool> {
@@ -257,7 +287,11 @@ impl Wallet {
       );
     }
 
-    Ok(response.json()?)
+    // CAT-21 😺: un-cat before parsing (no-op on the id list, kept for consistency)
+    Ok(serde_json::from_str(&cat21_decat_json(
+      self.index_cat21(),
+      response.text()?,
+    ))?)
   }
 
   pub(crate) fn get_inscriptions_in_output(
@@ -353,7 +387,9 @@ impl Wallet {
 
     let response = response.error_for_status()?;
 
-    let rune_json: api::Rune = serde_json::from_str(&response.text()?)?;
+    // CAT-21 😺: un-cat the body so api::Rune deserialises in cat mode
+    let rune_json: api::Rune =
+      serde_json::from_str(&cat21_decat_json(self.index_cat21(), response.text()?))?;
 
     Ok(Some((rune_json.id, rune_json.entry, rune_json.parent)))
   }
@@ -392,6 +428,12 @@ impl Wallet {
 
   pub(crate) fn integration_test(&self) -> bool {
     self.settings.integration_test()
+  }
+
+  // CAT-21 😺: true when started as `ord --index-cat21 wallet …`; gates the
+  // inscription→cat reversal applied to ord server responses.
+  pub(crate) fn index_cat21(&self) -> bool {
+    self.settings.index_cat21()
   }
 
   fn is_above_minimum_at_height(&self, rune: Rune) -> Result<bool> {
@@ -1193,3 +1235,35 @@ impl Wallet {
     &self.rpc_url
   }
 }
+
+// CAT-21 😺 - START
+#[cfg(test)]
+mod cat21_tests {
+  use super::*;
+
+  #[test]
+  fn decat_reverses_status_terminology_in_cat_mode() {
+    // Mirrors the server's rename of ord's StatusHtml fields. After this the
+    // canonical api::Status field names are back, so serde can deserialise them.
+    let cat_skinned = r#"{"blessed_cats":1,"cursed_cats":0,"cat_index":true,"cats":1}"#.to_string();
+    assert_eq!(
+      cat21_decat_json(true, cat_skinned),
+      r#"{"blessed_inscriptions":1,"cursed_inscriptions":0,"inscription_index":true,"inscriptions":1}"#
+    );
+  }
+
+  #[test]
+  fn decat_handles_capitalised_and_plural_forms() {
+    assert_eq!(
+      cat21_decat_json(true, "Cat Cats cat cats".to_string()),
+      "Inscription Inscriptions inscription inscriptions"
+    );
+  }
+
+  #[test]
+  fn decat_is_a_noop_outside_cat_mode() {
+    let body = r#"{"blessed_cats":1}"#.to_string();
+    assert_eq!(cat21_decat_json(false, body.clone()), body);
+  }
+}
+// CAT-21 😺 - END

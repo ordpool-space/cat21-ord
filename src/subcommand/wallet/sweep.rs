@@ -62,37 +62,18 @@ impl Sweep {
 
     let address = Address::from_script(&script_pubkey, wallet.chain().network().params()).unwrap();
 
+    // CAT-21 😺: OrdClient un-cats every JSON body it parses (see OrdClient).
     let ord_client = wallet.ord_client();
 
-    let address_info_body = ord_client
-      .get(wallet.rpc_url().join(&format!("/address/{address}"))?)
-      .send()
-      .context("failed to get address info from ord server")?
-      .text()
+    let address_info: api::AddressInfo = ord_client
+      .get_json(wallet.rpc_url().join(&format!("/address/{address}"))?)
       .context("failed to get address info from ord server")?;
-
-    // CAT-21 😺: un-cat the body so api::AddressInfo deserialises in cat mode
-    let address_info: api::AddressInfo = serde_json::from_str(&crate::wallet::cat21_decat_json(
-      wallet.index_cat21(),
-      address_info_body,
-    ))
-    .context("failed to parse address info from ord server")?;
 
     let mut utxos = Vec::new();
     for outpoint in &address_info.outputs {
-      let output_body = ord_client
-        .get(wallet.rpc_url().join(&format!("/output/{outpoint}"))?)
-        .send()
-        .context("failed to get output info from ord server")?
-        .text()
+      let output: api::Output = ord_client
+        .get_json(wallet.rpc_url().join(&format!("/output/{outpoint}"))?)
         .context("failed to get output info from ord server")?;
-
-      // CAT-21 😺: un-cat the body so api::Output deserialises in cat mode
-      let output: api::Output = serde_json::from_str(&crate::wallet::cat21_decat_json(
-        wallet.index_cat21(),
-        output_body,
-      ))
-      .context("failed to parse output info from ord server")?;
 
       ensure! {
         output.runes.as_ref().unwrap().is_empty(),

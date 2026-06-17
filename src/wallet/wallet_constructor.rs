@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone)]
 pub(crate) struct WalletConstructor {
-  ord_client: reqwest::blocking::Client,
+  ord_client: OrdClient,
   name: String,
   no_sync: bool,
   rpc_url: Url,
@@ -31,10 +31,15 @@ impl WalletConstructor {
     }
 
     Self {
-      ord_client: reqwest::blocking::ClientBuilder::new()
-        .timeout(None)
-        .default_headers(headers.clone())
-        .build()?,
+      // CAT-21 😺: wrap the ord HTTP client so every JSON body is un-catted in
+      // one place when --index-cat21 is set (see OrdClient / cat21_decat_json).
+      ord_client: OrdClient::new(
+        reqwest::blocking::ClientBuilder::new()
+          .timeout(None)
+          .default_headers(headers.clone())
+          .build()?,
+        settings.index_cat21(),
+      ),
       name,
       no_sync,
       rpc_url,
@@ -148,17 +153,9 @@ impl WalletConstructor {
   }
 
   fn get_output_info(&self, outputs: Vec<OutPoint>) -> Result<BTreeMap<OutPoint, api::Output>> {
-    let response = self.post("/outputs", &outputs)?;
-
-    if !response.status().is_success() {
-      bail!("wallet failed get outputs: {}", response.text()?);
-    }
-
-    // CAT-21 😺: un-cat the body so api::Output deserialises in cat mode
-    let response_outputs = serde_json::from_str::<Vec<api::Output>>(&cat21_decat_json(
-      self.settings.index_cat21(),
-      response.text()?,
-    ))?;
+    let response_outputs: Vec<api::Output> = self
+      .ord_client
+      .post_json(self.rpc_url.join("/outputs")?, &outputs)?;
 
     ensure! {
       response_outputs.len() == outputs.len(),
@@ -184,19 +181,13 @@ impl WalletConstructor {
     BTreeMap<SatPoint, Vec<InscriptionId>>,
     BTreeMap<InscriptionId, api::Inscription>,
   )> {
-    let response = self.post("/inscriptions", inscriptions)?;
-
-    if !response.status().is_success() {
-      bail!("wallet failed get inscriptions: {}", response.text()?);
-    }
+    let response_inscriptions: Vec<api::Inscription> = self
+      .ord_client
+      .post_json(self.rpc_url.join("/inscriptions")?, inscriptions)?;
 
     let mut inscriptions = BTreeMap::new();
     let mut inscription_infos = BTreeMap::new();
-    // CAT-21 😺: un-cat the body so api::Inscription deserialises in cat mode
-    for info in serde_json::from_str::<Vec<api::Inscription>>(&cat21_decat_json(
-      self.settings.index_cat21(),
-      response.text()?,
-    ))? {
+    for info in response_inscriptions {
       inscriptions
         .entry(info.satpoint)
         .or_insert_with(Vec::new)
@@ -256,33 +247,13 @@ impl WalletConstructor {
   }
 
   fn get_server_status(&self) -> Result<api::Status> {
-    let response = self.get("/status")?;
-
-    if !response.status().is_success() {
-      bail!("could not get status: {}", response.text()?)
-    }
-
-    // CAT-21 😺: un-cat the body so api::Status deserialises in cat mode
-    Ok(serde_json::from_str(&cat21_decat_json(
-      self.settings.index_cat21(),
-      response.text()?,
-    ))?)
+    self.ord_client.get_json(self.rpc_url.join("/status")?)
   }
 
   pub fn get(&self, path: &str) -> Result<reqwest::blocking::Response> {
     self
       .ord_client
       .get(self.rpc_url.join(path)?)
-      .send()
-      .map_err(|err| anyhow!(err))
-  }
-
-  pub fn post(&self, path: &str, body: &impl Serialize) -> Result<reqwest::blocking::Response> {
-    self
-      .ord_client
-      .post(self.rpc_url.join(path)?)
-      .json(body)
-      .header(reqwest::header::ACCEPT, "application/json")
       .send()
       .map_err(|err| anyhow!(err))
   }

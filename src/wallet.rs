@@ -79,7 +79,7 @@ pub(crate) struct Wallet {
   has_sat_index: bool,
   rpc_url: Url,
   utxos: BTreeMap<OutPoint, TxOut>,
-  ord_client: reqwest::blocking::Client,
+  ord_client: OrdClient,
   inscription_info: BTreeMap<InscriptionId, api::Inscription>,
   output_info: BTreeMap<OutPoint, api::Output>,
   inscriptions: BTreeMap<SatPoint, Vec<InscriptionId>>,
@@ -88,27 +88,114 @@ pub(crate) struct Wallet {
 }
 
 // CAT-21 😺 - START
-/// The cat21-ord server renames inscription→cat / Inscription→Cat in every
-/// response body (see `Server::cat21_transform_text`). When the wallet runs in
-/// the same cat21 mode (`ord --index-cat21 wallet …`) it is the inverse
-/// consumer: it undoes that rename before serde parses the body, so ord's
-/// canonical `api::*` structs deserialise unchanged.
+/// Pairs of (cat-form, canonical) JSON tokens the cat21 server's
+/// `cat21_text_layer` produces, each kept QUOTED so a match can only land on a
+/// whole JSON key or a whole string value, never on a substring inside a longer
+/// string. Derived by applying the server's forward `inscription`->`cat` rename
+/// to the exact field names ord's `api::*` structs use, plus the one enum value
+/// it mangles. No token is a substring of another, so replacement order does
+/// not matter.
+const CAT21_JSON_RENAMES: &[(&str, &str)] = &[
+  ("\"blessed_cats\"", "\"blessed_inscriptions\""), // api::Status key
+  ("\"cursed_cats\"", "\"cursed_inscriptions\""),   // api::Status key
+  ("\"cat_index\"", "\"inscription_index\""),       // api::Status key
+  ("\"cat_count\"", "\"inscription_count\""),       // api::Transaction key
+  ("\"cats\"", "\"inscriptions\""),                 // api::Status / Output / AddressInfo key
+  ("\"recat\"", "\"reinscription\""), // Charm value (DeserializeFromStr, hard-fails on a bad spelling)
+];
+
+/// Restores the canonical ord JSON a cat21 server emits with its
+/// `cat21_text_layer` rename (`inscription`->`cat`), so ord's `api::*` structs
+/// deserialise.
 ///
-/// This mirrors the server's blanket substring replace. The forward pass is
-/// safe on encoded values because "inscription" can never occur in a bech32
-/// address (the charset has no `i`/`o`); the reverse is not perfectly safe,
-/// because "cat" can occur in a bech32 address. The JSON field names the wallet
-/// relies on (`blessed_inscriptions`, `inscriptions`, `inscription_count`, …)
-/// reverse cleanly; a rare address containing the literal substring "cat" would
-/// be rewritten. Acceptable for the wallet's use and recorded here so the
-/// limitation is not lost.
+/// Reverses only the exact QUOTED tokens in `CAT21_JSON_RENAMES`. The quotes
+/// scope each match to a whole JSON key or string value, which keeps string
+/// values intact: "cat" is a valid bech32 substring, so an address such as
+/// `"bc1q...cat..."` and the native `"cat_numbers"` key both stay as written
+/// (neither is a quoted token).
+///
+/// Operates on the raw bytes, not `serde_json::Value`: ord's `u128` rune amounts
+/// exceed what serde_json parses without `arbitrary_precision`, so a `Value`
+/// round-trip would drop their precision.
 pub(crate) fn cat21_decat_json(index_cat21: bool, body: String) -> String {
-  if index_cat21 {
-    body
-      .replace("Cat", "Inscription")
-      .replace("cat", "inscription")
-  } else {
-    body
+  if !index_cat21 {
+    return body;
+  }
+  let mut body = body;
+  for (cat, inscription) in CAT21_JSON_RENAMES {
+    if body.contains(cat) {
+      body = body.replace(cat, inscription);
+    }
+  }
+  body
+}
+
+/// Wraps `reqwest::blocking::Client` for talking to an ord server. It carries
+/// the `--index-cat21` flag and runs `cat21_decat_json` over every JSON body it
+/// parses, so callers (`get_json` / `get_json_opt` / `post_json`) receive
+/// canonical ord JSON. With `index_cat21` false every method is a transparent
+/// passthrough.
+#[derive(Clone)]
+pub(crate) struct OrdClient {
+  client: reqwest::blocking::Client,
+  index_cat21: bool,
+}
+
+impl OrdClient {
+  pub(crate) fn new(client: reqwest::blocking::Client, index_cat21: bool) -> Self {
+    Self {
+      client,
+      index_cat21,
+    }
+  }
+
+  /// Raw GET request builder, for callers that only inspect the status or read a
+  /// non-JSON body (existence checks, `/blockcount`).
+  pub(crate) fn get(&self, url: Url) -> reqwest::blocking::RequestBuilder {
+    self.client.get(url)
+  }
+
+  /// GET a JSON resource, un-cat the body, and deserialise it.
+  pub(crate) fn get_json<T: serde::de::DeserializeOwned>(&self, url: Url) -> Result<T> {
+    self.parse(self.client.get(url).send()?)
+  }
+
+  /// GET a JSON resource that may be absent; a 404 maps to `None`.
+  pub(crate) fn get_json_opt<T: serde::de::DeserializeOwned>(&self, url: Url) -> Result<Option<T>> {
+    let response = self.client.get(url).send()?;
+    if response.status() == StatusCode::NOT_FOUND {
+      return Ok(None);
+    }
+    Ok(Some(self.parse(response)?))
+  }
+
+  /// POST a JSON body, un-cat the response, and deserialise it.
+  pub(crate) fn post_json<B: Serialize, T: serde::de::DeserializeOwned>(
+    &self,
+    url: Url,
+    body: &B,
+  ) -> Result<T> {
+    self.parse(
+      self
+        .client
+        .post(url)
+        .json(body)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()?,
+    )
+  }
+
+  fn parse<T: serde::de::DeserializeOwned>(
+    &self,
+    response: reqwest::blocking::Response,
+  ) -> Result<T> {
+    let status = response.status();
+    let body = response.text()?;
+    ensure!(status.is_success(), "ord server returned {status}: {body}");
+    Ok(serde_json::from_str(&cat21_decat_json(
+      self.index_cat21,
+      body,
+    ))?)
   }
 }
 // CAT-21 😺 - END
@@ -230,22 +317,12 @@ impl Wallet {
     &self,
     inscription_id: InscriptionId,
   ) -> Result<Option<api::Inscription>> {
-    let body = self
-      .ord_client
-      .get(
-        self
-          .rpc_url
-          .join(&format!("/inscription/{inscription_id}"))
-          .unwrap(),
-      )
-      .send()?
-      .text()?;
-
-    // CAT-21 😺: un-cat the body so api::Inscription deserialises in cat mode
-    Ok(serde_json::from_str(&cat21_decat_json(
-      self.index_cat21(),
-      body,
-    ))?)
+    self.ord_client.get_json_opt(
+      self
+        .rpc_url
+        .join(&format!("/inscription/{inscription_id}"))
+        .unwrap(),
+    )
   }
 
   pub(crate) fn inscription_exists(&self, inscription_id: InscriptionId) -> Result<bool> {
@@ -272,26 +349,9 @@ impl Wallet {
       return Ok(Vec::new());
     }
 
-    let response = self
+    self
       .ord_client
-      .post(self.rpc_url.join("/missing").unwrap())
-      .json(&inscription_ids)
-      .header(reqwest::header::ACCEPT, "application/json")
-      .send()?;
-
-    if !response.status().is_success() {
-      bail!(
-        "failed to check missing inscriptions: {} {}",
-        response.status(),
-        response.text()?,
-      );
-    }
-
-    // CAT-21 😺: un-cat before parsing (no-op on the id list, kept for consistency)
-    Ok(serde_json::from_str(&cat21_decat_json(
-      self.index_cat21(),
-      response.text()?,
-    ))?)
+      .post_json(self.rpc_url.join("/missing").unwrap(), &inscription_ids)
   }
 
   pub(crate) fn get_inscriptions_in_output(
@@ -371,25 +431,15 @@ impl Wallet {
     &self,
     rune: Rune,
   ) -> Result<Option<(RuneId, RuneEntry, Option<InscriptionId>)>> {
-    let response = self
-      .ord_client
-      .get(
-        self
-          .rpc_url
-          .join(&format!("/rune/{}", SpacedRune { rune, spacers: 0 }))
-          .unwrap(),
-      )
-      .send()?;
-
-    if response.status() == StatusCode::NOT_FOUND {
+    let Some(rune_json) = self.ord_client.get_json_opt::<api::Rune>(
+      self
+        .rpc_url
+        .join(&format!("/rune/{}", SpacedRune { rune, spacers: 0 }))
+        .unwrap(),
+    )?
+    else {
       return Ok(None);
-    }
-
-    let response = response.error_for_status()?;
-
-    // CAT-21 😺: un-cat the body so api::Rune deserialises in cat mode
-    let rune_json: api::Rune =
-      serde_json::from_str(&cat21_decat_json(self.index_cat21(), response.text()?))?;
+    };
 
     Ok(Some((rune_json.id, rune_json.entry, rune_json.parent)))
   }
@@ -428,12 +478,6 @@ impl Wallet {
 
   pub(crate) fn integration_test(&self) -> bool {
     self.settings.integration_test()
-  }
-
-  // CAT-21 😺: true when started as `ord --index-cat21 wallet …`; gates the
-  // inscription→cat reversal applied to ord server responses.
-  pub(crate) fn index_cat21(&self) -> bool {
-    self.settings.index_cat21()
   }
 
   fn is_above_minimum_at_height(&self, rune: Rune) -> Result<bool> {
@@ -1227,8 +1271,8 @@ impl Wallet {
     )
   }
 
-  pub(crate) fn ord_client(&self) -> reqwest::blocking::Client {
-    self.ord_client.clone()
+  pub(crate) fn ord_client(&self) -> &OrdClient {
+    &self.ord_client
   }
 
   pub(crate) fn rpc_url(&self) -> &Url {
@@ -1253,11 +1297,49 @@ mod cat21_tests {
   }
 
   #[test]
-  fn decat_handles_capitalised_and_plural_forms() {
+  fn decat_renames_keys_but_not_value_substrings() {
+    // The key is reversed; an address VALUE that contains "cat" is left intact.
+    let body = r#"{"blessed_cats":1,"address":"bc1qcatxyz"}"#.to_string();
+    let decoded = cat21_decat_json(true, body);
+    assert!(decoded.contains(r#""blessed_inscriptions":1"#));
+    assert!(!decoded.contains("blessed_cats"));
+    assert!(decoded.contains(r#""address":"bc1qcatxyz""#));
+  }
+
+  #[test]
+  fn decat_preserves_address_value_containing_cat_substring() {
+    // A bech32 address can contain the substring "cat"; it round-trips unchanged.
+    let body = r#"{"address":"bc1qcatxyz"}"#.to_string();
+    assert_eq!(cat21_decat_json(true, body.clone()), body);
+  }
+
+  #[test]
+  fn decat_preserves_native_cat_numbers_key() {
+    // cat_numbers is a real ord field, not a renamed "inscription_numbers".
+    let body = r#"{"cat_numbers":[0,1],"cats":["abc"]}"#.to_string();
+    let decoded = cat21_decat_json(true, body);
+    assert!(decoded.contains(r#""cat_numbers":[0,1]"#));
+    assert!(decoded.contains(r#""inscriptions":["abc"]"#));
+  }
+
+  #[test]
+  fn decat_reverses_reinscription_charm_value() {
+    // The server renames the `reinscription` charm to `recat` in JSON. The
+    // wallet must reverse it or Charm (DeserializeFromStr) fails to parse the
+    // whole api::Inscription.
+    let body = r#"{"charms":["coin","recat"]}"#.to_string();
     assert_eq!(
-      cat21_decat_json(true, "Cat Cats cat cats".to_string()),
-      "Inscription Inscriptions inscription inscriptions"
+      cat21_decat_json(true, body),
+      r#"{"charms":["coin","reinscription"]}"#
     );
+  }
+
+  #[test]
+  fn decat_leaves_non_json_text_untouched() {
+    // Plain text (e.g. an ord error response) carries no quoted cat-tokens, so
+    // nothing matches and the body is returned unchanged.
+    let body = "could not find inscription; the cat is out of the bag".to_string();
+    assert_eq!(cat21_decat_json(true, body.clone()), body);
   }
 
   #[test]

@@ -187,6 +187,15 @@ impl From<OutPoint> for JsonOutPoint {
   }
 }
 
+// One entry of fundrawtransaction's `input_weights`: the weight of a
+// pre-selected input the wallet cannot otherwise solve. (`weight` is ignored
+// here; mockcore only needs to know which inputs were declared.)
+#[derive(Deserialize)]
+pub struct InputWeight {
+  pub txid: Txid,
+  pub vout: u32,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FundRawTransactionOptions {
@@ -194,6 +203,8 @@ pub struct FundRawTransactionOptions {
   fee_rate: Option<Amount>,
   #[serde(skip_serializing_if = "Option::is_none")]
   change_position: Option<u32>,
+  #[serde(rename = "input_weights", default)]
+  input_weights: Option<Vec<InputWeight>>,
 }
 
 #[derive(Deserialize, Clone, PartialEq, Eq, Debug, Serialize)]

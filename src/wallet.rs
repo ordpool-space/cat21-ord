@@ -79,7 +79,7 @@ pub(crate) struct Wallet {
   has_sat_index: bool,
   rpc_url: Url,
   utxos: BTreeMap<OutPoint, TxOut>,
-  ord_client: OrdClient,
+  ord_client: OrdClient, // CAT-21 😺
   inscription_info: BTreeMap<InscriptionId, api::Inscription>,
   output_info: BTreeMap<OutPoint, api::Output>,
   inscriptions: BTreeMap<SatPoint, Vec<InscriptionId>>,
@@ -317,12 +317,14 @@ impl Wallet {
     &self,
     inscription_id: InscriptionId,
   ) -> Result<Option<api::Inscription>> {
+    // CAT-21 😺 - START: route through OrdClient so the body is un-catted before parsing
     self.ord_client.get_json_opt(
       self
         .rpc_url
         .join(&format!("/inscription/{inscription_id}"))
         .unwrap(),
     )
+    // CAT-21 😺 - END
   }
 
   pub(crate) fn inscription_exists(&self, inscription_id: InscriptionId) -> Result<bool> {
@@ -349,9 +351,11 @@ impl Wallet {
       return Ok(Vec::new());
     }
 
+    // CAT-21 😺 - START: route through OrdClient so the body is un-catted before parsing
     self
       .ord_client
       .post_json(self.rpc_url.join("/missing").unwrap(), &inscription_ids)
+    // CAT-21 😺 - END
   }
 
   pub(crate) fn get_inscriptions_in_output(
@@ -431,6 +435,7 @@ impl Wallet {
     &self,
     rune: Rune,
   ) -> Result<Option<(RuneId, RuneEntry, Option<InscriptionId>)>> {
+    // CAT-21 😺 - START: route through OrdClient so the body is un-catted before parsing
     let Some(rune_json) = self.ord_client.get_json_opt::<api::Rune>(
       self
         .rpc_url
@@ -442,6 +447,7 @@ impl Wallet {
     };
 
     Ok(Some((rune_json.id, rune_json.entry, rune_json.parent)))
+    // CAT-21 😺 - END
   }
 
   pub(crate) fn get_change_address(&self) -> Result<Address> {
@@ -1271,9 +1277,11 @@ impl Wallet {
     )
   }
 
+  // CAT-21 😺 - START: hand out the decat-aware OrdClient wrapper by reference
   pub(crate) fn ord_client(&self) -> &OrdClient {
     &self.ord_client
   }
+  // CAT-21 😺 - END
 
   pub(crate) fn rpc_url(&self) -> &Url {
     &self.rpc_url

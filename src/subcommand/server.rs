@@ -1533,7 +1533,7 @@ impl Server {
       sat_balance,
       outputs,
       inscriptions,
-      cat_numbers,
+      cat_numbers, // CAT-21 😺
       runes_balances,
     }))
   }
@@ -2251,7 +2251,7 @@ impl Server {
       Ok(if accept_json {
         Json(api::Inscriptions {
           ids: galleries,
-          cat_numbers,
+          cat_numbers, // CAT-21 😺
           page_index,
           more,
         })
@@ -2412,12 +2412,14 @@ impl Server {
 
       let next = more.then_some(page_index + 1);
 
+      // CAT-21 😺 - START: "last »" pagination link
       let last = {
         let status = index.status(server_config.json_api_enabled)?;
         let last_page = status.inscriptions.saturating_sub(1) / 100;
         let last_page = u32::try_from(last_page).unwrap_or(u32::MAX);
         (last_page > page_index).then_some(last_page)
       };
+      // CAT-21 😺 - END
 
       let cat_numbers = if server_config.index_cat21 {
         Some(index.get_cat_numbers(&inscriptions)?)
@@ -2427,7 +2429,7 @@ impl Server {
       Ok(if accept_json {
         Json(api::Inscriptions {
           ids: inscriptions,
-          cat_numbers,
+          cat_numbers, // CAT-21 😺
           page_index,
           more,
         })
@@ -2435,7 +2437,7 @@ impl Server {
       } else {
         InscriptionsHtml {
           inscriptions,
-          last,
+          last, // CAT-21 😺
           next,
           prev,
         }
@@ -2488,7 +2490,7 @@ impl Server {
       Ok(if accept_json {
         Json(api::Inscriptions {
           ids: inscriptions,
-          cat_numbers,
+          cat_numbers, // CAT-21 😺
           page_index,
           more,
         })
@@ -7777,7 +7779,7 @@ next
     assert_eq!(
       server.get_json::<api::SatInscriptions>("/r/sat/5000000000"),
       api::SatInscriptions {
-        cat_numbers: None,
+        cat_numbers: None, // CAT-21 😺
         ids: Vec::new(),
         page: 0,
         more: false

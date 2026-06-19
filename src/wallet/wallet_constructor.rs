@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone)]
 pub(crate) struct WalletConstructor {
-  ord_client: OrdClient,
+  ord_client: OrdClient, // CAT-21 😺
   name: String,
   no_sync: bool,
   rpc_url: Url,
@@ -153,9 +153,11 @@ impl WalletConstructor {
   }
 
   fn get_output_info(&self, outputs: Vec<OutPoint>) -> Result<BTreeMap<OutPoint, api::Output>> {
+    // CAT-21 😺 - START: route through OrdClient so the body is un-catted before parsing
     let response_outputs: Vec<api::Output> = self
       .ord_client
       .post_json(self.rpc_url.join("/outputs")?, &outputs)?;
+    // CAT-21 😺 - END
 
     ensure! {
       response_outputs.len() == outputs.len(),
@@ -181,9 +183,11 @@ impl WalletConstructor {
     BTreeMap<SatPoint, Vec<InscriptionId>>,
     BTreeMap<InscriptionId, api::Inscription>,
   )> {
+    // CAT-21 😺 - START: route through OrdClient so the body is un-catted before parsing
     let response_inscriptions: Vec<api::Inscription> = self
       .ord_client
       .post_json(self.rpc_url.join("/inscriptions")?, inscriptions)?;
+    // CAT-21 😺 - END
 
     let mut inscriptions = BTreeMap::new();
     let mut inscription_infos = BTreeMap::new();
@@ -247,7 +251,7 @@ impl WalletConstructor {
   }
 
   fn get_server_status(&self) -> Result<api::Status> {
-    self.ord_client.get_json(self.rpc_url.join("/status")?)
+    self.ord_client.get_json(self.rpc_url.join("/status")?) // CAT-21 😺
   }
 
   pub fn get(&self, path: &str) -> Result<reqwest::blocking::Response> {

@@ -27,7 +27,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         override: true
-        toolchain: stable
+        toolchain: 1.97.0  # CAT-21 😺: mirrors rust-toolchain.toml so CI can't drift onto a newer stable
 
     - uses: Swatinem/rust-cache@v2
 
@@ -74,7 +74,7 @@ jobs:
       with:
         components: clippy, rustfmt
         override: true
-        toolchain: stable
+        toolchain: 1.97.0  # CAT-21 😺: mirrors rust-toolchain.toml so CI can't drift onto a newer stable
 
     - uses: Swatinem/rust-cache@v2
 
@@ -106,7 +106,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: 1.97.0  # CAT-21 😺: mirrors rust-toolchain.toml so CI can't drift onto a newer stable
 
     - uses: Swatinem/rust-cache@v2
 

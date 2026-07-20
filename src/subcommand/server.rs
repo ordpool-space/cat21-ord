@@ -109,6 +109,14 @@ pub struct Server {
   pub(crate) decompress: bool,
   #[arg(long, env = "ORD_SERVER_DISABLE_JSON_API", help = "Disable JSON API.")]
   pub(crate) disable_json_api: bool,
+  // CAT-21 😺 - START
+  #[arg(
+    long,
+    env = "ORD_SERVER_DISABLE_HTML",
+    help = "Disable the HTML explorer. Requests that would render a template get a small static page instead."
+  )]
+  pub(crate) disable_html: bool,
+  // CAT-21 😺 - END
   #[arg(
     long,
     help = "Listen on <HTTP_PORT> for incoming HTTP requests. [default: 80]"
@@ -380,6 +388,16 @@ impl Server {
       } else {
         router
       };
+
+      // Outermost layer, so a non-JSON request is answered before the URL
+      // rewrite and before route matching.
+      let router = if self.disable_html {
+        Router::new()
+          .fallback_service(router)
+          .layer(axum::middleware::from_fn(Self::cat21_html_gate))
+      } else {
+        router
+      };
       // CAT-21 😺 - END
 
       match (self.http_port(), self.https_port()) {
@@ -636,6 +654,40 @@ impl Server {
   }
 
   // CAT-21 😺 - START
+  // CAT-21 😺 - START
+  // Inbound middleware for --disable-html. Sits on the outer Router so it
+  // short-circuits before route matching: nothing reaches a template and
+  // nothing touches the index. 406 mirrors accept_json.rs's refusal of the
+  // opposite case.
+  //
+  // Two paths stay open because the uptime probe cannot set request headers:
+  // /r/blockheight (plain-text tip) and /r/inscription/{id} (JSON without
+  // negotiation). The rest of /r/ is closed — a cat is an empty envelope, so
+  // children, parents and metadata carry nothing.
+  async fn cat21_html_gate(
+    request: http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+  ) -> Response {
+    let path = request.uri().path();
+
+    if path == "/r/blockheight" || path.starts_with("/r/inscription/") {
+      return next.run(request).await;
+    }
+
+    let accepts_json = request
+      .headers()
+      .get("accept")
+      .map(|value| value == "application/json")
+      .unwrap_or_default();
+
+    if accepts_json {
+      return next.run(request).await;
+    }
+
+    (StatusCode::NOT_ACCEPTABLE, "HTML disabled").into_response()
+  }
+  // CAT-21 😺 - END
+
   // Inbound middleware: rewrites /cat/ → /inscription/, /cats → /inscriptions URLs
   // so upstream routes handle them. Applied via an outer Router wrapping the main one,
   // ensuring URL rewriting happens BEFORE axum's route matching.

@@ -122,6 +122,10 @@ pub struct Inscription {
   pub weight: u64,               // CAT-21 😺
   pub size: u64,                 // CAT-21 😺
   pub minted_by: Option<String>, // CAT-21 😺 — address from mint tx's first output
+  // CAT-21 😺 — hash of the block that mined this cat. A client holding
+  // txid + block_hash + fee + weight can render the cat itself; without it
+  // every consumer needs a second /block/<height> call for the hash alone.
+  pub block_hash: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

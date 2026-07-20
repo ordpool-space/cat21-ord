@@ -2416,6 +2416,13 @@ impl Index {
           })
           .map(|address| address.to_string()),
         // CAT-21 😺 - END
+        // CAT-21 😺 - START: block hash, read off the already-open rtx so
+        // consumers can render a cat without a second /block/<height> call
+        block_hash: rtx
+          .open_table(HEIGHT_TO_BLOCK_HEADER)?
+          .get(entry.height)?
+          .map(|header| Header::load(*header.value()).block_hash().to_string()),
+        // CAT-21 😺 - END
       },
       output,
       inscription,

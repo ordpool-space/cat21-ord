@@ -166,6 +166,14 @@ fn get_inscription() {
   assert_regex_match!(inscription_json.address.unwrap(), r"bc1p.*");
   inscription_json.address = None;
 
+  // CAT-21 😺 — block_hash carries the mining block's hash. The struct
+  // comparison below echoes it, so pin the shape here: a populated 64-char
+  // hex hash, which is what lets a client render a cat without a second call.
+  assert_regex_match!(
+    inscription_json.block_hash.clone().unwrap(),
+    r"^[0-9a-f]{64}$"
+  );
+
   pretty_assert_eq!(
     inscription_json,
     api::Inscription {
@@ -190,9 +198,10 @@ fn get_inscription() {
       satpoint: SatPoint::from_str(&format!("{}:{}:{}", reveal, 0, 0)).unwrap(),
       timestamp: 2,
       metaprotocol: None,
-      weight: inscription_json.weight,               // CAT-21 😺
-      size: inscription_json.size,                   // CAT-21 😺
-      minted_by: inscription_json.minted_by.clone(), // CAT-21 😺
+      weight: inscription_json.weight,                 // CAT-21 😺
+      size: inscription_json.size,                     // CAT-21 😺
+      minted_by: inscription_json.minted_by.clone(),   // CAT-21 😺
+      block_hash: inscription_json.block_hash.clone(), // CAT-21 😺
     }
   )
 }
@@ -257,9 +266,10 @@ fn get_inscription_with_metaprotocol_and_properties() {
       satpoint: SatPoint::from_str(&format!("{}:{}:{}", output.reveal, 0, 0)).unwrap(),
       timestamp: 2,
       metaprotocol: Some("foo".to_string()),
-      weight: inscription_json.weight,               // CAT-21 😺
-      size: inscription_json.size,                   // CAT-21 😺
-      minted_by: inscription_json.minted_by.clone(), // CAT-21 😺
+      weight: inscription_json.weight,                 // CAT-21 😺
+      size: inscription_json.size,                     // CAT-21 😺
+      minted_by: inscription_json.minted_by.clone(),   // CAT-21 😺
+      block_hash: inscription_json.block_hash.clone(), // CAT-21 😺
     }
   );
 }

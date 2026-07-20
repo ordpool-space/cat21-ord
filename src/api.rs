@@ -128,6 +128,18 @@ pub struct Inscription {
   pub block_hash: Option<String>,
 }
 
+// CAT-21 😺 - START
+/// Liveness payload. Both fields are read from the index per request, so a
+/// monitor asserting either one is testing ord rather than the web server.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Cat21Alive {
+  /// Chain tip as the index sees it.
+  pub height: u32,
+  /// Inscription id of cat #0, proving the per-cat lookup path answers.
+  pub genesis: String,
+}
+// CAT-21 😺 - END
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct InscriptionRecursive {
   pub charms: Vec<Charm>,

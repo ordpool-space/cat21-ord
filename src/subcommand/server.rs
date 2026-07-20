@@ -294,6 +294,7 @@ impl Server {
         .route("/blockhash/{height}", get(r::block_hash_from_height_string))
         .route("/blockheight", get(r::blockheight_string))
         .route("/blocktime", get(r::blocktime_string))
+        .route("/cat21/alive", get(Self::cat21_alive)) // CAT-21 😺
         .route("/r/blockhash", get(r::blockhash))
         .route("/r/blockhash/{height}", get(r::blockhash_at_height))
         .route("/r/blockheight", get(r::blockheight_string))
@@ -654,23 +655,46 @@ impl Server {
   }
 
   // CAT-21 😺 - START
-  // CAT-21 😺 - START
+  // Liveness endpoint. External monitoring cannot set request headers below
+  // the paid tier, so this answers JSON regardless of Accept and is the one
+  // path the html gate lets through.
+  //
+  // Both fields are read per request, so a keyword monitor on either is
+  // testing ord rather than the web server. Resolving cat #0 goes through
+  // inscription_info, the same path /cat/0 used, which fetches the mint
+  // transaction from Bitcoin Core — so a stale RPC cookie after a bitcoind
+  // restart fails here instead of silently serving 500s everywhere else.
+  async fn cat21_alive(
+    Extension(index): Extension<Arc<Index>>,
+  ) -> ServerResult<Json<api::Cat21Alive>> {
+    task::block_in_place(|| {
+      let (info, _, _) = index
+        .inscription_info(query::Inscription::Number(0), None)?
+        .ok_or_not_found(|| "cat 0")?;
+
+      Ok(Json(api::Cat21Alive {
+        height: index.block_height()?.ok_or_not_found(|| "blockheight")?.n(),
+        genesis: info.id.to_string(),
+      }))
+    })
+  }
+
   // Inbound middleware for --disable-html. Sits on the outer Router so it
   // short-circuits before route matching: nothing reaches a template and
   // nothing touches the index. 406 mirrors accept_json.rs's refusal of the
   // opposite case.
   //
-  // Two paths stay open because the uptime probe cannot set request headers:
-  // /r/blockheight (plain-text tip) and /r/inscription/{id} (JSON without
-  // negotiation). The rest of /r/ is closed — a cat is an empty envelope, so
-  // children, parents and metadata carry nothing.
+  // /cat21/alive is the sole exception, because external monitoring cannot
+  // send an Accept header below the paid tier. Everything else is closed,
+  // including all of /r/: with --index-cat21 a cat is an empty envelope, so
+  // children, parents, metadata and content recursion carry nothing.
   async fn cat21_html_gate(
     request: http::Request<axum::body::Body>,
     next: axum::middleware::Next,
   ) -> Response {
     let path = request.uri().path();
 
-    if path == "/r/blockheight" || path.starts_with("/r/inscription/") {
+    if path == "/cat21/alive" {
       return next.run(request).await;
     }
 

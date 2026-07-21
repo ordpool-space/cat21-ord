@@ -137,6 +137,25 @@ impl TestServer {
     reqwest::blocking::get(self.url().join(path.as_ref()).unwrap()).unwrap()
   }
 
+  // CAT-21 😺 — canonical block hash for a height, straight from mockcore over
+  // RPC, so a test can assert an inscription's block_hash equals the real hash
+  // rather than merely matching a hex shape.
+  pub(crate) fn block_hash(&self, height: u64) -> bitcoin::BlockHash {
+    self.client.get_block_hash(height).unwrap()
+  }
+
+  // CAT-21 😺 — raw request with a chosen Accept header and NO /update sync.
+  // The --disable-html gate returns 406 before route matching, so the sync
+  // that every other helper performs (a plain GET on /update) would itself be
+  // gated; these tests exercise the gate, which needs no synced index.
+  pub(crate) fn request_with_accept(&self, path: impl AsRef<str>, accept: &str) -> Response {
+    reqwest::blocking::Client::new()
+      .get(self.url().join(path.as_ref()).unwrap())
+      .header(reqwest::header::ACCEPT, accept)
+      .send()
+      .unwrap()
+  }
+
   pub(crate) fn json_request(&self, path: impl AsRef<str>) -> Response {
     self.sync_server();
 

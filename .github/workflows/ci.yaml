@@ -91,7 +91,6 @@ jobs:
 
   test:
     strategy:
-      fail-fast: false
       matrix:
         os:
         - macos-latest
@@ -99,14 +98,6 @@ jobs:
         - windows-latest
 
     runs-on: ${{matrix.os}}
-
-    # CAT-21 😺: the windows leg is non-blocking. cat21-ord ships only on Linux
-    # (happysrv.de), and upstream ord's integration tests race the harness's ord
-    # server against bitcoind on the slow windows runner ("N blocks behind
-    # bitcoind"), failing a different random test each run. That flake is not our
-    # code and would fail on Linux too if real, so it must not red the build.
-    # Kept in the matrix for visibility rather than dropped.
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
 
     steps:
     - uses: actions/checkout@v5
@@ -119,5 +110,24 @@ jobs:
 
     - uses: Swatinem/rust-cache@v2
 
+    # CAT-21 😺: windows retries up to 3x before hard-failing. Upstream ord's
+    # integration harness races its ord server against bitcoind on the slow
+    # windows runner ("N blocks behind bitcoind"), failing a different random
+    # test each run. Retries absorb that transient flake; a persistent failure
+    # (a real windows regression) still reds the build after the third attempt.
+    # unix runs once so a genuine failure there reds immediately, no 3x wait.
     - name: Test
-      run: cargo test --all
+      run: |
+        attempts=1
+        [ "${{ matrix.os }}" = "windows-latest" ] && attempts=3
+        for i in $(seq 1 "$attempts"); do
+          echo "::group::cargo test --all (attempt $i/$attempts)"
+          if cargo test --all; then
+            echo "::endgroup::"
+            exit 0
+          fi
+          echo "::endgroup::"
+          echo "attempt $i/$attempts failed"
+        done
+        echo "cargo test --all failed after $attempts attempt(s)"
+        exit 1

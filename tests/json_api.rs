@@ -275,6 +275,20 @@ fn disable_html_gate_refuses_non_json() {
     ord.request_with_accept("/cat21/alive", "*/*").status(),
     StatusCode::NOT_ACCEPTABLE,
   );
+
+  // /robots.txt is served (200, Disallow-all) even with HTML off, so
+  // robots.txt-respecting crawlers read the disallow and leave.
+  let robots = ord.request_with_accept("/robots.txt", "text/html");
+  assert_eq!(
+    robots.status(),
+    StatusCode::OK,
+    "robots.txt should be served, not gated",
+  );
+  assert_eq!(
+    robots.text().unwrap(),
+    "User-agent: *\nDisallow: /\n",
+    "robots.txt should Disallow everything",
+  );
 }
 
 #[test]

@@ -684,10 +684,13 @@ impl Server {
   // nothing touches the index. 406 mirrors accept_json.rs's refusal of the
   // opposite case.
   //
-  // /cat21/alive is the sole exception, because external monitoring cannot
-  // send an Accept header below the paid tier. Everything else is closed,
-  // including all of /r/: with --index-cat21 a cat is an empty envelope, so
-  // children, parents, metadata and content recursion carry nothing.
+  // Two exceptions: /cat21/alive (external monitoring cannot send an Accept
+  // header below the paid tier) and /robots.txt (a Disallow-all served even
+  // with HTML off, so robots.txt-respecting crawlers read the disallow and
+  // leave instead of hammering the gate for a 406 they cannot act on).
+  // Everything else is closed, including all of /r/: with --index-cat21 a
+  // cat is an empty envelope, so children, parents, metadata and content
+  // recursion carry nothing.
   async fn cat21_html_gate(
     request: http::Request<axum::body::Body>,
     next: axum::middleware::Next,
@@ -696,6 +699,10 @@ impl Server {
 
     if path == "/cat21/alive" {
       return next.run(request).await;
+    }
+
+    if path == "/robots.txt" {
+      return (StatusCode::OK, "User-agent: *\nDisallow: /\n").into_response();
     }
 
     let accepts_json = request

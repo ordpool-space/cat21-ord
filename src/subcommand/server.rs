@@ -705,6 +705,16 @@ impl Server {
       return (StatusCode::OK, "User-agent: *\nDisallow: /\n").into_response();
     }
 
+    // These explorer routes ignore the Accept header and always return HTML
+    // (home `/`, `/clock`, `/parents/<id>` have no AcceptJson branch), so the
+    // `accepts_json` pass-through below would let a JSON-Accept request reach
+    // them and leak the HTML explorer despite --disable-html. Refuse them here,
+    // before any index read. The JSON recursive endpoints are unaffected: they
+    // live under `/r/parents/...`, which does not match `/parents/`.
+    if path == "/" || path == "/clock" || path.starts_with("/parents/") {
+      return (StatusCode::NOT_ACCEPTABLE, "HTML disabled").into_response();
+    }
+
     let accepts_json = request
       .headers()
       .get("accept")

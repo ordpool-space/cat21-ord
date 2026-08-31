@@ -263,6 +263,34 @@ fn disable_html_gate_refuses_non_json() {
     StatusCode::NOT_ACCEPTABLE,
   );
 
+  // These explorer routes ignore Accept and render HTML unconditionally, so a
+  // JSON Accept must NOT slip them through the gate (regression for the
+  // home / clock / parents --disable-html bypass).
+  for path in [
+    "/",
+    "/clock",
+    "/parents/0000000000000000000000000000000000000000000000000000000000000000i0",
+  ] {
+    assert_eq!(
+      ord.request_with_accept(path, "application/json").status(),
+      StatusCode::NOT_ACCEPTABLE,
+      "JSON-Accept request to HTML-only {path} should be 406",
+    );
+  }
+
+  // The JSON recursive parents endpoint (/r/parents/...) is a genuine JSON
+  // route and must still pass the gate (never 406) — it does not match the
+  // /parents/ HTML prefix blocked above.
+  assert_ne!(
+    ord
+      .request_with_accept(
+        "/r/parents/0000000000000000000000000000000000000000000000000000000000000000i0",
+        "application/json",
+      )
+      .status(),
+    StatusCode::NOT_ACCEPTABLE,
+  );
+
   // /cat21/alive is the one exemption: it answers regardless of Accept, since
   // the external monitor cannot set request headers below the paid tier.
   assert_ne!(

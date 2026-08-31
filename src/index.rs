@@ -1601,6 +1601,12 @@ impl Index {
       return Ok(None);
     }
 
+    // CAT-21 😺 - START: fake inscriptions have no real envelope on-chain
+    if self.settings.index_cat21() {
+      return Ok(Some(Inscription::default()));
+    }
+    // CAT-21 😺 - END
+
     Ok(self.get_transaction(inscription_id.txid)?.and_then(|tx| {
       ParsedEnvelope::from_transaction(&tx)
         .into_iter()
@@ -1713,6 +1719,24 @@ impl Index {
 
     Ok(Some(result))
   }
+
+  // CAT-21 😺 - START: resolve inscription IDs to cat numbers (sorted newest first)
+  pub fn get_cat_numbers(&self, ids: &[InscriptionId]) -> Result<Vec<i32>> {
+    let rtx = self.database.begin_read()?;
+    let id_to_seq = rtx.open_table(INSCRIPTION_ID_TO_SEQUENCE_NUMBER)?;
+    let seq_to_entry = rtx.open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?;
+
+    let mut numbers = Vec::with_capacity(ids.len());
+    for id in ids {
+      if let Some(seq) = id_to_seq.get(&id.store())? {
+        let entry = InscriptionEntry::load(seq_to_entry.get(seq.value())?.unwrap().value());
+        numbers.push(entry.inscription_number);
+      }
+    }
+    numbers.sort_unstable_by(|a, b| b.cmp(a));
+    Ok(numbers)
+  }
+  // CAT-21 😺 - END
 
   pub fn get_unspent_or_unconfirmed_output(
     &self,
@@ -2226,13 +2250,20 @@ impl Index {
       return Ok(None);
     };
 
-    let Some(inscription) = ParsedEnvelope::from_transaction(&transaction)
-      .into_iter()
-      .nth(entry.id.index as usize)
-      .map(|envelope| envelope.payload)
-    else {
-      return Ok(None);
+    // CAT-21 😺 - START: fake inscriptions have no real envelope on-chain
+    let inscription = if self.settings.index_cat21() {
+      Inscription::default()
+    } else {
+      let Some(inscription) = ParsedEnvelope::from_transaction(&transaction)
+        .into_iter()
+        .nth(entry.id.index as usize)
+        .map(|envelope| envelope.payload)
+      else {
+        return Ok(None);
+      };
+      inscription
     };
+    // CAT-21 😺 - END
 
     let satpoint = SatPoint::load(
       *rtx
@@ -2370,6 +2401,28 @@ impl Index {
         timestamp: timestamp(entry.timestamp.into()).timestamp(),
         value: output.as_ref().map(|o| o.value.to_sat()),
         metaprotocol: inscription.metaprotocol().map(|s| s.to_string()),
+        weight: entry.weight, // CAT-21 😺
+        size: entry.size,     // CAT-21 😺
+        // CAT-21 😺 - START: address from mint tx's first output (not current holder)
+        minted_by: transaction
+          .output
+          .first()
+          .and_then(|o| {
+            self
+              .settings
+              .chain()
+              .address_from_script(&o.script_pubkey)
+              .ok()
+          })
+          .map(|address| address.to_string()),
+        // CAT-21 😺 - END
+        // CAT-21 😺 - START: block hash, read off the already-open rtx so
+        // consumers can render a cat without a second /block/<height> call
+        block_hash: rtx
+          .open_table(HEIGHT_TO_BLOCK_HEADER)?
+          .get(entry.height)?
+          .map(|header| Header::load(*header.value()).block_hash().to_string()),
+        // CAT-21 😺 - END
       },
       output,
       inscription,

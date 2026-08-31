@@ -162,6 +162,7 @@ pub fn spawn() -> Handle {
 pub struct TransactionTemplate<'a> {
   pub fee: u64,
   pub inputs: &'a [(usize, usize, usize, Witness)],
+  pub lock_time: u32, // CAT-21 😺
   pub op_return: Option<ScriptBuf>,
   pub op_return_index: Option<usize>,
   pub op_return_value: Option<u64>,
@@ -186,6 +187,18 @@ impl From<OutPoint> for JsonOutPoint {
   }
 }
 
+// One entry of fundrawtransaction's `input_weights`: a pre-selected input the
+// wallet cannot otherwise solve, plus the weight the caller estimates for it.
+// The solvability check reads only the outpoint; the whole list is recorded on
+// the state (see `fund_raw_transaction`) so tests can assert the caller passes
+// the right weights.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct InputWeight {
+  pub txid: Txid,
+  pub vout: u32,
+  pub weight: u64,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FundRawTransactionOptions {
@@ -193,6 +206,8 @@ pub struct FundRawTransactionOptions {
   fee_rate: Option<Amount>,
   #[serde(skip_serializing_if = "Option::is_none")]
   change_position: Option<u32>,
+  #[serde(rename = "input_weights", default)]
+  input_weights: Option<Vec<InputWeight>>,
 }
 
 #[derive(Deserialize, Clone, PartialEq, Eq, Debug, Serialize)]
@@ -211,6 +226,7 @@ impl Default for TransactionTemplate<'_> {
     Self {
       fee: 0,
       inputs: &[],
+      lock_time: 0, // CAT-21 😺
       op_return: None,
       op_return_index: None,
       op_return_value: None,
@@ -250,6 +266,10 @@ impl Handle {
 
   pub fn clear_state(&self) {
     self.state.lock().unwrap().clear();
+  }
+
+  pub fn fund_raw_transaction_input_weights(&self) -> Vec<InputWeight> {
+    self.state().fund_raw_transaction_input_weights.clone()
   }
 
   pub fn wallets(&self) -> BTreeSet<String> {

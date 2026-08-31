@@ -6,6 +6,7 @@ pub struct State {
   pub change_addresses: BTreeSet<Address>,
   pub descriptors: Vec<(String, bitcoincore_rpc::json::Timestamp)>,
   pub fail_lock_unspent: bool,
+  pub fund_raw_transaction_input_weights: Vec<InputWeight>,
   pub hashes: Vec<BlockHash>,
   pub loaded_wallets: BTreeSet<String>,
   pub locked: BTreeSet<OutPoint>,
@@ -36,6 +37,7 @@ impl State {
       change_addresses: BTreeSet::new(),
       descriptors: Vec::new(),
       fail_lock_unspent,
+      fund_raw_transaction_input_weights: Vec::new(),
       hashes,
       loaded_wallets: BTreeSet::new(),
       locked: BTreeSet::new(),
@@ -254,7 +256,7 @@ impl State {
 
     let mut tx = Transaction {
       version: Version(2),
-      lock_time: LockTime::ZERO,
+      lock_time: LockTime::from_consensus(template.lock_time), // CAT-21 😺
       input,
       output: (0..template.outputs)
         .map(|i| TxOut {

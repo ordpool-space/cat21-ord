@@ -62,22 +62,17 @@ impl Sweep {
 
     let address = Address::from_script(&script_pubkey, wallet.chain().network().params()).unwrap();
 
+    // CAT-21 😺: OrdClient un-cats every JSON body it parses (see OrdClient).
     let ord_client = wallet.ord_client();
 
-    let address_info = &ord_client
-      .get(wallet.rpc_url().join(&format!("/address/{address}"))?)
-      .send()
-      .context("failed to get address info from ord server")?
-      .json::<api::AddressInfo>()
+    let address_info: api::AddressInfo = ord_client
+      .get_json(wallet.rpc_url().join(&format!("/address/{address}"))?)
       .context("failed to get address info from ord server")?;
 
     let mut utxos = Vec::new();
     for outpoint in &address_info.outputs {
-      let output = ord_client
-        .get(wallet.rpc_url().join(&format!("/output/{outpoint}"))?)
-        .send()
-        .context("failed to get output info from ord server")?
-        .json::<api::Output>()
+      let output: api::Output = ord_client
+        .get_json(wallet.rpc_url().join(&format!("/output/{outpoint}"))?)
         .context("failed to get output info from ord server")?;
 
       ensure! {

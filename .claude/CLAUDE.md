@@ -1,120 +1,111 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Fork of the [ord client](https://github.com/ordinals/ord) that indexes CAT-21 via the **fake inscription** approach, on branch `index-cat21`. Family-wide rules live in the workspace `CLAUDE.md`; this file is fork-specific.
 
-## Project Overview
+ord is taught to treat `nLockTime=21` transactions as inscriptions. They are not real ones (no `OP_FALSE OP_IF` envelope exists on chain), but ord does not need to know: once they count as inscriptions, sat tracking, transfers and the whole API work unchanged. Approach borrowed from `labitbu/pathologies`.
 
-Fork of the [ord client](https://github.com/ordinals/ord) with CAT-21 indexing via the **fake inscription** approach. Branch: `index-cat21`.
-
-The idea: teach ord to recognize `nLockTime=21` transactions as inscriptions. They're not real inscriptions — there's no `OP_FALSE OP_IF` envelope on-chain — but ord doesn't need to know that. Once it treats them as inscriptions, all of ord's infrastructure (sat tracking, transfers, API) works automatically.
-
-Inspired by `labitbu/pathologies` (Labitbu's ord fork for indexing pathologies).
-
-## Build, Lint & Test
+## RULE: Lint before every commit
 
 ```bash
-cargo build --release
-cargo fmt -- --check                              # format lint
-RUSTFLAGS="--deny warnings" cargo clippy --all --all-targets  # clippy lint
+cargo fmt -- --check
+RUSTFLAGS="--deny warnings" cargo clippy --all --all-targets
 cargo test
-# See the wiki for full setup: https://github.com/ordpool-space/cat21-ord/wiki
+cargo build --release
 ```
 
-### HARD RULE: Keep useful comments
+Why: CI runs both checks with `--deny warnings` and fails on any warning or formatting issue.
 
-**Don't strip JSDoc or "why" inline comments under the banner of
-"simplification".** The text inside a comment can be trimmed (no
-bombast, no LLM-speak, no before-after history); the block itself
-stays. CAT-21 indexing rationale and the "this differs from upstream
-ord because…" notes around `// CAT-21 😺 - START` blocks are exactly
-the kind of comment a future reader (and the next upstream merge)
-cannot reconstruct from code alone. Full decision tree in the workspace
-`CLAUDE.md` HARD RULE "Keep useful comments (JSDoc AND inline 'why')".
+## RULE: Keep useful comments
 
-### HARD RULE: Always lint before committing
-Run both `cargo fmt -- --check` AND `RUSTFLAGS="--deny warnings" cargo clippy --all --all-targets` before every commit. CI runs both checks with `--deny warnings` and will fail the build on any warning or formatting issue.
+- Trim the text inside a comment (no bombast, no LLM-speak, no before/after history); keep the block.
+- Specifically keep the CAT-21 indexing rationale and the "this differs from upstream ord because..." notes around `// CAT-21 😺 - START` blocks.
 
-## CAT-21 Development Rules
+Why: the next upstream merge needs to know why a line diverges, and that cannot be reconstructed from the code.
+Ref: workspace `CLAUDE.md` "Keep useful comments (JSDoc AND inline 'why')".
 
-### Code Organization
-- Mark all CAT-21 code blocks with `// CAT-21 😺 - START` and `// CAT-21 😺 - END`
-- Minimize changes to core ord code — the fork must stay easily mergeable with upstream
-- Don't change existing lines if possible; prefer adding new code alongside existing code
+## RULE: Every CAT-21 change is marked and minimal
 
-### The `--index-cat21` Flag
-Without the flag, ord behaves 100% like upstream. With `--index-cat21`, the indexer:
-- Ignores all real inscriptions (doesn't even parse tapscript witnesses)
-- Checks `nLockTime == 21` on every transaction
-- Creates a fake empty envelope for matching transactions
-- Uses `first_cat21_height` (block 815855) instead of `first_inscription_height`
+- Wrap all CAT-21 code in `// CAT-21 😺 - START` and `// CAT-21 😺 - END`.
+- Add new code alongside existing code. Do not change existing lines where it can be avoided.
+- Touch only what is necessary.
 
-### Key Files (CAT-21 changes)
-1. **`src/options.rs`** — `--index-cat21` CLI flag definition
-2. **`src/settings.rs`** — Wires flag through settings, overrides `first_inscription_height()` when active
-3. **`src/chain.rs`** — Defines `first_cat21_height()` (block 815855, genesis cat)
-4. **`src/index/updater/inscription_updater.rs`** — Core logic: nLockTime check + fake envelope creation
-5. **`src/subcommand/server.rs`** — `cat21_text_layer` middleware + `/cat/` and `/cats` routes
+Why: every changed line is a potential conflict on the next rebase onto upstream.
 
-### Display Layer: `cat21_text_layer` Middleware
+## RULE: Keep templates upstream-clean, put display changes in the middleware
 
-All cat21 display transformations are centralized in two axum middlewares in `server.rs`:
+- Never add `%% if index_cat21` conditionals to templates for display-only changes; they belong in `cat21_text_layer`.
+- The one exception is `inscription.html`'s traits section, which needs `txid`, `block_hash`, `fee` and `weight`, data only the template can reach.
 
-**`cat21_url_rewrite` (inbound)** — Rewrites `/cat/` → `/inscription/` and `/cats` → `/inscriptions` URLs before route matching. Applied via an outer `Router` wrapping the main one with `fallback_service`, because `Router::layer()` runs AFTER route matching and can't rewrite URLs in time.
+## RULE: Fork management, squash and rebase only
 
-**`cat21_text_layer` (outbound)** — Transforms HTML, CSS, and JSON response bodies when `--index-cat21` is active:
-- **Terminology**: `Inscription` → `Cat`, `inscription` → `cat` (applies to HTML text, CSS class selectors like `.inscription` → `.cat`, and JSON field names like `"inscriptions"` → `"cats"`)
-- **Sat name protection**: The `protect_field` helper prevents data corruption for sat names that contain "inscription" (sat names are base-26 encoded numbers). Before the blanket replacement, it scans for "inscription" inside `"name":"..."` JSON fields, `<dt>name</dt><dd>...</dd>` HTML, and `/sat/...` URLs, temporarily replacing with a placeholder that's restored afterward. Handles multiple occurrences.
-- **Home title**: `<title>Ordinals</title>` → `<title>CAT-21</title>`
-- **Nav**: Replaces `<sup>beta</sup>` with `<sup>CAT-21</sup>` and injects the genesis cat logo link
-- **CSS/font**: Injects `cat21-page.css` stylesheet and `public-pixel.woff2` font preload after `modern-normalize.css`
-- **Runes**: Strips `<h2>0 Runes</h2>` (always 0 in cat21 mode)
-- **Transaction page**: Adds line break after "Transaction", shows txid, adds ordpool.space link
-- **Content-Length**: Recalculated after body replacement to match the new body size
+- **PR #1 stays open permanently.** It documents the full delta against upstream. Never merge it.
+- Squash all changes into a single commit on `index-cat21`. One commit = one diff = an easy rebase.
+- When upstream releases, REBASE `index-cat21` onto `upstream/master` and force push. Never merge; merge commits create clutter.
 
-**Design principle**: Keep templates upstream-clean. Never add `%% if index_cat21` conditionals for display-only changes — put them in the middleware instead. The only exception is `inscription.html`'s traits section, which needs dynamic data attributes (`txid`, `block_hash`, `fee`, `weight`) that only the template has access to.
+## RULE: Run the server from systemd, never by hand
 
-**Layer ordering**: The outbound `cat21_text_layer` must be listed before the `Extension` layers (innermost in the onion) so it can extract `ServerConfig`, but after `CompressionLayer` (so it processes uncompressed bodies). The inbound `cat21_url_rewrite` wraps the entire router from outside via `Router::new().fallback_service(inner).layer(...)`.
+- Use the unit files in `deploy-ord-dev/`: `ord.service` (`CAP_NET_BIND_SERVICE` for port 80, auto-restart, journald) and `bitcoind.service` (auto-restart).
+- Never start either with `nohup`.
 
-### Wallet in cat mode (`ord --index-cat21 wallet …`)
+## RULE: Update the docs that describe the fork when the fork changes
 
-`cat21_text_layer` rewrites JSON too, which breaks ord's own wallet client: it is a serde consumer of the canonical ord schema, so a renamed `/status` (`blessed_inscriptions` → `blessed_cats`) fails to deserialise (every wallet command fetches `/status` in `WalletConstructor::build`). The fix is symmetric with the server: the same `--index-cat21` flag turns the wallet into a cat-aware client. `WalletConstructor`/`Wallet` read `settings.index_cat21()` and run every ord-server response body through `cat21_decat_json` (`src/wallet.rs`, the inverse of the server rename) before parsing, so the canonical `api::*` structs deserialise unchanged. Without the flag the wallet is vanilla ord and decat is a no-op.
+- Review `FORK.md`, `.claude/CLAUDE.md`, `README.md` and the [wiki](https://github.com/ordpool-space/cat21-ord/wiki) for anything the change made stale.
+- Wiki clone: `git@github-ord-dev:ordpool-space/cat21-ord.wiki.git`.
 
-Caveat: the reverse is a blanket substring replace. The forward pass is safe on bech32 addresses because "inscription" has no `i`/`o`; the reverse is not, because "cat" is valid bech32, so a rare address containing the literal substring "cat" would be rewritten. The field names the wallet relies on reverse cleanly. See the `cat21_decat_json` doc comment.
+## Flags
 
-### Routes
+| flag | status |
+|---|---|
+| `--index-cat21` | REQUIRED, enables CAT-21 indexing mode |
+| `--index-sats` | REQUIRED, sat tracking for ordinal theory |
+| `--index-addresses` | recommended, address lookups |
+| `--no-index-inscriptions` | INCOMPATIBLE: cats ARE inscriptions here |
 
-No extra routes are needed. The inbound URL rewrite ensures `/cat/{id}` and `/cats` URLs map to the existing `/inscription/` and `/inscriptions` routes. The original routes are untouched — zero diff with upstream.
+Without `--index-cat21` ord behaves 100% like upstream. With it, the indexer ignores all real inscriptions (it does not even parse tapscript witnesses), checks `nLockTime == 21` on every transaction, creates a fake empty envelope for matches, and uses `first_cat21_height` (block 815855, the genesis cat) instead of `first_inscription_height`.
 
-### What ord handles automatically
-Once cats appear as inscriptions:
-- Sat assignment (first sat of first output)
-- Transfer tracking across transactions
-- API endpoints (`/inscription/<txid>i0` and `/cat/<txid>i0`)
-- Address lookups
-- Database storage
+## Key files
 
-### Important flags
-- `--index-cat21` — REQUIRED (enables CAT-21 indexing mode)
-- `--index-sats` — REQUIRED (sat tracking for ordinal theory)
-- `--index-addresses` — recommended (address lookups)
-- `--no-index-inscriptions` — INCOMPATIBLE with `--index-cat21` (cats ARE inscriptions)
-- Do NOT use `--no-index-inscriptions` — cats ARE inscriptions in this approach
+| file | CAT-21 change |
+|---|---|
+| `src/options.rs` | `--index-cat21` CLI flag |
+| `src/settings.rs` | wires the flag through; overrides `first_inscription_height()` when active |
+| `src/chain.rs` | `first_cat21_height()`, block 815855 |
+| `src/index/updater/inscription_updater.rs` | the nLockTime check and fake envelope creation |
+| `src/subcommand/server.rs` | `cat21_text_layer` middleware, `/cat/` and `/cats` routes |
 
-### Fork Management
-- **PR #1 stays open permanently** — it documents the full delta against upstream. Never merge it.
-- **Squash all changes into a single commit** on `index-cat21`. One commit = one diff = easy rebase. No commit clutter.
-- **Rebase onto upstream, never merge** — when upstream releases a new version, rebase `index-cat21` onto `upstream/master` and force push. Merge commits create clutter.
-- **Keep changes minimal** — every line we change is a potential merge conflict. Only touch what's necessary.
+## Display layer
 
-### Server Deployment
+<!-- long-rule: two middlewares with ordering constraints and a corruption guard -->
 
-Use the systemd service files in `deploy-ord-dev/` to run services in production:
-- `ord.service` — runs ord with `CAP_NET_BIND_SERVICE` (port 80), auto-restart, journald logging
-- `bitcoind.service` — runs bitcoind with auto-restart
+Two axum middlewares in `server.rs` hold every cat21 display transformation.
 
-**Never start these manually with `nohup`.**
+**`cat21_url_rewrite` (inbound)** rewrites `/cat/` to `/inscription/` and `/cats` to `/inscriptions` BEFORE route matching. It wraps the main router from outside via `Router::new().fallback_service(inner).layer(...)`, because `Router::layer()` runs after route matching and would be too late.
 
-### Documentation
-- `FORK.md` — technical description of what this fork changes and how
-- [Wiki](https://github.com/ordpool-space/cat21-ord/wiki) — setup guides for humans (Developer HowTo, Bitcoin guides, Ord guide)
-- When making changes, review `FORK.md`, `.claude/CLAUDE.md`, `README.md`, and the [wiki](https://github.com/ordpool-space/cat21-ord/wiki) for outdated information and update them. The wiki repo can be cloned at `git@github-ord-dev:ordpool-space/cat21-ord.wiki.git`.
+**`cat21_text_layer` (outbound)** transforms HTML, CSS and JSON bodies when `--index-cat21` is active:
+
+- Terminology: `Inscription` to `Cat`, `inscription` to `cat`, across HTML text, CSS selectors (`.inscription` to `.cat`) and JSON field names (`"inscriptions"` to `"cats"`).
+- **Sat-name protection**: `protect_field` prevents data corruption for sat names containing "inscription" (names are base-26 numbers). Before the blanket replace it scans `"name":"..."` JSON, `<dt>name</dt><dd>...</dd>` HTML and `/sat/...` URLs, swaps in a placeholder, and restores afterwards. Handles multiple occurrences.
+- Home title `<title>Ordinals</title>` to `<title>CAT-21</title>`; nav `<sup>beta</sup>` to `<sup>CAT-21</sup>` plus the genesis cat logo link.
+- Injects `cat21-page.css` and the `public-pixel.woff2` preload after `modern-normalize.css`.
+- Strips `<h2>0 Runes</h2>` (always 0 in cat21 mode). Transaction page gains a line break after "Transaction", the txid, and an ordpool.space link.
+- `Content-Length` is recalculated after replacement.
+
+**Layer ordering**: list the outbound `cat21_text_layer` BEFORE the `Extension` layers (innermost in the onion) so it can extract `ServerConfig`, but AFTER `CompressionLayer` so it sees uncompressed bodies.
+
+## Wallet in cat mode (`ord --index-cat21 wallet ...`)
+
+`cat21_text_layer` rewrites JSON too, which breaks ord's own wallet: it is a serde consumer of the canonical ord schema, so a renamed `/status` (`blessed_inscriptions` to `blessed_cats`) fails to deserialise, and every wallet command fetches `/status` in `WalletConstructor::build`.
+
+The fix is symmetric with the server. `WalletConstructor`/`Wallet` read `settings.index_cat21()` and run every response body through `cat21_decat_json` (`src/wallet.rs`, the inverse rename) before parsing, so the canonical `api::*` structs deserialise unchanged. Without the flag the wallet is vanilla ord and decat is a no-op.
+
+Caveat: the reverse pass is a blanket substring replace. The forward pass is safe on bech32 because "inscription" contains no `i`/`o`; the reverse is not, because "cat" is valid bech32, so a rare address containing the literal "cat" would be rewritten. The field names the wallet relies on reverse cleanly. See the `cat21_decat_json` doc comment.
+
+## What comes free, and what needs no routes
+
+Once cats appear as inscriptions, ord handles sat assignment (first sat of the first output), transfer tracking, API endpoints (`/inscription/<txid>i0` and `/cat/<txid>i0`), address lookups and database storage.
+
+No extra routes exist: the inbound rewrite maps `/cat/{id}` and `/cats` onto the existing `/inscription/` and `/inscriptions` routes, so the route table is zero-diff with upstream.
+
+## Documentation
+
+`FORK.md` describes what the fork changes and how. The [wiki](https://github.com/ordpool-space/cat21-ord/wiki) holds the human setup guides (Developer HowTo, Bitcoin guides, Ord guide). Full setup for the commands above is in the wiki.

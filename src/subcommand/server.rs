@@ -892,6 +892,15 @@ impl Server {
   ) -> ServerResult {
     task::block_in_place(|| {
       Ok(if accept_json {
+        let mut seen = HashSet::new();
+        for outpoint in &outputs {
+          if !seen.insert(outpoint) {
+            return Err(ServerError::BadRequest(format!(
+              "duplicate outpoint {outpoint}: duplicates are not allowed"
+            )));
+          }
+        }
+
         let mut response = Vec::new();
         for outpoint in outputs {
           let (output_info, _) = index
@@ -1826,6 +1835,15 @@ impl Server {
   ) -> ServerResult {
     task::block_in_place(|| {
       Ok(if accept_json {
+        let mut seen = HashSet::new();
+        for inscription in &inscriptions {
+          if !seen.insert(inscription) {
+            return Err(ServerError::BadRequest(format!(
+              "duplicate inscription id {inscription}: duplicates are not allowed"
+            )));
+          }
+        }
+
         let mut response = Vec::new();
         for inscription in inscriptions {
           let query = query::Inscription::Id(inscription);

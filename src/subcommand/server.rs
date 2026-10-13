@@ -1275,20 +1275,20 @@ impl Server {
   ) -> ServerResult {
     task::block_in_place(|| {
       Ok(if accept_json {
-        let mut response = Vec::<api::Output>::new();
-        let mut positions = BTreeMap::<OutPoint, usize>::new();
+        let mut seen = HashSet::new();
+        for outpoint in &outputs {
+          if !seen.insert(outpoint) {
+            return Err(ServerError::BadRequest(format!(
+              "duplicate outpoint {outpoint}: duplicates are not allowed"
+            )));
+          }
+        }
+
+        let mut response = Vec::new();
         for outpoint in outputs {
-          let output_info = if let Some(&position) = positions.get(&outpoint) {
-            response[position].clone()
-          } else {
-            let (output_info, _) = index
-              .get_output_info(outpoint)?
-              .ok_or_not_found(|| format!("output {outpoint}"))?;
-
-            positions.insert(outpoint, response.len());
-
-            output_info
-          };
+          let (output_info, _) = index
+            .get_output_info(outpoint)?
+            .ok_or_not_found(|| format!("output {outpoint}"))?;
 
           response.push(output_info);
         }
@@ -2271,21 +2271,21 @@ impl Server {
   ) -> ServerResult {
     task::block_in_place(|| {
       Ok(if accept_json {
-        let mut response = Vec::<api::Inscription>::new();
-        let mut positions = BTreeMap::<InscriptionId, usize>::new();
+        let mut seen = HashSet::new();
+        for inscription in &inscriptions {
+          if !seen.insert(inscription) {
+            return Err(ServerError::BadRequest(format!(
+              "duplicate inscription id {inscription}: duplicates are not allowed"
+            )));
+          }
+        }
+
+        let mut response = Vec::new();
         for inscription in inscriptions {
-          let info = if let Some(&position) = positions.get(&inscription) {
-            response[position].clone()
-          } else {
-            let query = query::Inscription::Id(inscription);
-            let (info, _, _) = index
-              .inscription_info(query, None)?
-              .ok_or_not_found(|| format!("inscription {query}"))?;
-
-            positions.insert(inscription, response.len());
-
-            info
-          };
+          let query = query::Inscription::Id(inscription);
+          let (info, _, _) = index
+            .inscription_info(query, None)?
+            .ok_or_not_found(|| format!("inscription {query}"))?;
 
           response.push(info);
         }
@@ -3050,6 +3050,28 @@ mod tests {
       assert_eq!(response.status(), status, "{}", response.text().unwrap());
 
       response
+    }
+
+    #[track_caller]
+    fn post_json_expecting(&self, path: &str, body: &str, status: StatusCode) -> String {
+      if let Err(error) = self.index.update() {
+        log::error!("{error}");
+      }
+
+      let response = reqwest::blocking::Client::new()
+        .post(self.join_url(path))
+        .header(header::ACCEPT, "application/json")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(body.to_string())
+        .send()
+        .unwrap();
+
+      let got = response.status();
+      let text = response.text().unwrap();
+
+      assert_eq!(got, status, "{text}");
+
+      text
     }
 
     fn join_url(&self, url: &str) -> Url {
@@ -9916,14 +9938,75 @@ next
     let output_b = server.get_json::<api::Output>(format!("/output/{b}"));
 
     pretty_assert_eq!(
-      server.post_json::<Vec<api::Output>>("outputs", &vec![a, b, a, a, b]),
-      vec![
-        output_a.clone(),
-        output_b.clone(),
-        output_a.clone(),
-        output_a,
-        output_b,
-      ],
+      server.post_json::<Vec<api::Output>>("outputs", &vec![b, a]),
+      vec![output_b, output_a],
+    );
+  }
+
+  #[test]
+  fn outputs_rejects_duplicate_outpoints() {
+    let server = TestServer::builder()
+      .chain(Chain::Regtest)
+      .index_sats()
+      .build();
+
+    server.mine_blocks(1);
+
+    let a = OutPoint {
+      txid: server.core.tx(1, 0).compute_txid(),
+      vout: 0,
+    };
+
+    pretty_assert_eq!(
+      server.post_json_expecting(
+        "outputs",
+        &serde_json::to_string(&vec![a, a]).unwrap(),
+        StatusCode::BAD_REQUEST
+      ),
+      format!("duplicate outpoint {a}: duplicates are not allowed"),
+    );
+  }
+
+  #[test]
+  fn outputs_single_outpoint_works() {
+    let server = TestServer::builder()
+      .chain(Chain::Regtest)
+      .index_sats()
+      .build();
+
+    server.mine_blocks(1);
+
+    let a = OutPoint {
+      txid: server.core.tx(1, 0).compute_txid(),
+      vout: 0,
+    };
+
+    let output_a = server.get_json::<api::Output>(format!("/output/{a}"));
+
+    pretty_assert_eq!(
+      server.post_json::<Vec<api::Output>>("outputs", &vec![a]),
+      vec![output_a],
+    );
+  }
+
+  #[test]
+  fn outputs_not_found_for_unknown_outpoint() {
+    let server = TestServer::builder()
+      .chain(Chain::Regtest)
+      .index_sats()
+      .build();
+
+    server.mine_blocks(1);
+
+    let unknown = OutPoint {
+      txid: server.core.tx(1, 0).compute_txid(),
+      vout: 99,
+    };
+
+    server.post_json_expecting(
+      "outputs",
+      &serde_json::to_string(&vec![unknown]).unwrap(),
+      StatusCode::NOT_FOUND,
     );
   }
 
@@ -9955,13 +10038,74 @@ next
     let inscription_b = server.get_json::<api::Inscription>(format!("/inscription/{b}"));
 
     pretty_assert_eq!(
-      server.post_json::<Vec<api::Inscription>>("inscriptions", &vec![b, a, a, b]),
-      vec![
-        inscription_b.clone(),
-        inscription_a.clone(),
-        inscription_a,
-        inscription_b,
-      ],
+      server.post_json::<Vec<api::Inscription>>("inscriptions", &vec![b, a]),
+      vec![inscription_b, inscription_a],
+    );
+  }
+
+  #[test]
+  fn inscriptions_rejects_duplicate_ids() {
+    let server = TestServer::builder().chain(Chain::Regtest).build();
+
+    server.mine_blocks(1);
+
+    let txid = server.core.broadcast_tx(TransactionTemplate {
+      inputs: &[(1, 0, 0, inscription("text/plain", "foo").to_witness())],
+      ..default()
+    });
+
+    server.mine_blocks(1);
+
+    let a = InscriptionId { txid, index: 0 };
+
+    pretty_assert_eq!(
+      server.post_json_expecting(
+        "inscriptions",
+        &serde_json::to_string(&vec![a, a]).unwrap(),
+        StatusCode::BAD_REQUEST
+      ),
+      format!("duplicate inscription id {a}: duplicates are not allowed"),
+    );
+  }
+
+  #[test]
+  fn inscriptions_single_id_works() {
+    let server = TestServer::builder().chain(Chain::Regtest).build();
+
+    server.mine_blocks(1);
+
+    let txid = server.core.broadcast_tx(TransactionTemplate {
+      inputs: &[(1, 0, 0, inscription("text/plain", "foo").to_witness())],
+      ..default()
+    });
+
+    server.mine_blocks(1);
+
+    let a = InscriptionId { txid, index: 0 };
+
+    let inscription_a = server.get_json::<api::Inscription>(format!("/inscription/{a}"));
+
+    pretty_assert_eq!(
+      server.post_json::<Vec<api::Inscription>>("inscriptions", &vec![a]),
+      vec![inscription_a],
+    );
+  }
+
+  #[test]
+  fn inscriptions_not_found_for_unknown_id() {
+    let server = TestServer::builder().chain(Chain::Regtest).build();
+
+    server.mine_blocks(1);
+
+    let unknown = InscriptionId {
+      txid: Txid::all_zeros(),
+      index: 0,
+    };
+
+    server.post_json_expecting(
+      "inscriptions",
+      &serde_json::to_string(&vec![unknown]).unwrap(),
+      StatusCode::NOT_FOUND,
     );
   }
 }

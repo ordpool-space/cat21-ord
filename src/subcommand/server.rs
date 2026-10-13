@@ -119,6 +119,12 @@ pub struct Server {
   // CAT-21 😺 - END
   #[arg(
     long,
+    env = "ORD_SERVER_JSON_BODY_LIMIT",
+    help = "Limit JSON API request bodies to <JSON_BODY_LIMIT> bytes. `ord wallet` sends all wallet outputs in a single request, so a low limit breaks large wallets. [default: 33554432]"
+  )]
+  pub(crate) json_body_limit: Option<usize>,
+  #[arg(
+    long,
     help = "Listen on <HTTP_PORT> for incoming HTTP requests. [default: 80]"
   )]
   pub(crate) http_port: Option<u16>,
@@ -161,6 +167,8 @@ impl Server {
     handle: Handle<SocketAddr>,
     http_port_tx: Option<std::sync::mpsc::Sender<u16>>,
   ) -> SubcommandResult {
+    let json_body_limit = self.json_body_limit()?;
+
     settings.runtime()?.block_on(async {
       let index_clone = index.clone();
       let integration_test = settings.integration_test();
@@ -207,7 +215,7 @@ impl Server {
       });
 
       let body_limit = if server_config.json_api_enabled {
-        DefaultBodyLimit::max(32 * MEBIBYTE)
+        DefaultBodyLimit::max(json_body_limit)
       } else {
         DefaultBodyLimit::max(2 * MEBIBYTE)
       };
@@ -562,6 +570,14 @@ impl Server {
     } else {
       None
     }
+  }
+
+  fn json_body_limit(&self) -> Result<usize> {
+    let limit = self.json_body_limit.unwrap_or(32 * MEBIBYTE);
+
+    ensure!(limit > 0, "--json-body-limit must be greater than zero");
+
+    Ok(limit)
   }
 
   fn https_port(&self) -> Option<u16> {
@@ -1259,11 +1275,20 @@ impl Server {
   ) -> ServerResult {
     task::block_in_place(|| {
       Ok(if accept_json {
-        let mut response = Vec::new();
+        let mut response = Vec::<api::Output>::new();
+        let mut positions = BTreeMap::<OutPoint, usize>::new();
         for outpoint in outputs {
-          let (output_info, _) = index
-            .get_output_info(outpoint)?
-            .ok_or_not_found(|| format!("output {outpoint}"))?;
+          let output_info = if let Some(&position) = positions.get(&outpoint) {
+            response[position].clone()
+          } else {
+            let (output_info, _) = index
+              .get_output_info(outpoint)?
+              .ok_or_not_found(|| format!("output {outpoint}"))?;
+
+            positions.insert(outpoint, response.len());
+
+            output_info
+          };
 
           response.push(output_info);
         }
@@ -2246,12 +2271,21 @@ impl Server {
   ) -> ServerResult {
     task::block_in_place(|| {
       Ok(if accept_json {
-        let mut response = Vec::new();
+        let mut response = Vec::<api::Inscription>::new();
+        let mut positions = BTreeMap::<InscriptionId, usize>::new();
         for inscription in inscriptions {
-          let query = query::Inscription::Id(inscription);
-          let (info, _, _) = index
-            .inscription_info(query, None)?
-            .ok_or_not_found(|| format!("inscription {query}"))?;
+          let info = if let Some(&position) = positions.get(&inscription) {
+            response[position].clone()
+          } else {
+            let query = query::Inscription::Id(inscription);
+            let (info, _, _) = index
+              .inscription_info(query, None)?
+              .ok_or_not_found(|| format!("inscription {query}"))?;
+
+            positions.insert(inscription, response.len());
+
+            info
+          };
 
           response.push(info);
         }
@@ -9768,6 +9802,166 @@ next
       StatusCode::PAYLOAD_TOO_LARGE,
       "{}",
       response.text().unwrap(),
+    );
+  }
+
+  #[track_caller]
+  fn post_json_body(server: &TestServer, path: &str, len: usize) -> StatusCode {
+    reqwest::blocking::Client::new()
+      .post(server.join_url(path))
+      .header(header::ACCEPT, "application/json")
+      .header(header::CONTENT_TYPE, "application/json")
+      .body(format!("[]{}", " ".repeat(len - 2)))
+      .send()
+      .unwrap()
+      .status()
+  }
+
+  #[test]
+  fn json_body_limit_defaults_to_32_mebibytes() {
+    let (_, server) = parse_server_args("ord server");
+    assert_eq!(server.json_body_limit().unwrap(), 32 * MEBIBYTE);
+  }
+
+  #[test]
+  fn json_body_limit_may_be_set() {
+    let (_, server) = parse_server_args("ord server --json-body-limit 1024");
+    assert_eq!(server.json_body_limit().unwrap(), 1024);
+  }
+
+  #[test]
+  fn json_body_limit_must_be_greater_than_zero() {
+    let (_, server) = parse_server_args("ord server --json-body-limit 0");
+    assert_eq!(
+      server.json_body_limit().unwrap_err().to_string(),
+      "--json-body-limit must be greater than zero",
+    );
+  }
+
+  #[test]
+  fn post_bodies_are_limited_to_32_mebibytes_by_default() {
+    let server = TestServer::new();
+
+    assert_eq!(
+      post_json_body(&server, "outputs", 32 * MEBIBYTE),
+      StatusCode::OK
+    );
+
+    assert_eq!(
+      post_json_body(&server, "outputs", 32 * MEBIBYTE + 1),
+      StatusCode::PAYLOAD_TOO_LARGE,
+    );
+  }
+
+  #[test]
+  fn post_bodies_are_limited_to_json_body_limit() {
+    let server = TestServer::builder()
+      .server_option("--json-body-limit", "1024")
+      .build();
+
+    for path in ["inscriptions", "missing", "outputs"] {
+      assert_eq!(
+        post_json_body(&server, path, 1024),
+        StatusCode::OK,
+        "{path}"
+      );
+
+      assert_eq!(
+        post_json_body(&server, path, 1025),
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "{path}",
+      );
+    }
+  }
+
+  #[test]
+  fn json_body_limit_does_not_apply_when_json_api_is_disabled() {
+    let server = TestServer::builder()
+      .server_flag("--disable-json-api")
+      .server_option("--json-body-limit", "1024")
+      .build();
+
+    assert_eq!(
+      reqwest::blocking::Client::new()
+        .post(server.join_url("outputs"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(format!("[]{}", " ".repeat(1023)))
+        .send()
+        .unwrap()
+        .status(),
+      StatusCode::NOT_FOUND,
+    );
+  }
+
+  #[test]
+  fn outputs_returns_one_output_per_requested_outpoint_in_order() {
+    let server = TestServer::builder()
+      .chain(Chain::Regtest)
+      .index_sats()
+      .build();
+
+    server.mine_blocks(2);
+
+    let a = OutPoint {
+      txid: server.core.tx(1, 0).compute_txid(),
+      vout: 0,
+    };
+
+    let b = OutPoint {
+      txid: server.core.tx(2, 0).compute_txid(),
+      vout: 0,
+    };
+
+    let output_a = server.get_json::<api::Output>(format!("/output/{a}"));
+    let output_b = server.get_json::<api::Output>(format!("/output/{b}"));
+
+    pretty_assert_eq!(
+      server.post_json::<Vec<api::Output>>("outputs", &vec![a, b, a, a, b]),
+      vec![
+        output_a.clone(),
+        output_b.clone(),
+        output_a.clone(),
+        output_a,
+        output_b,
+      ],
+    );
+  }
+
+  #[test]
+  fn inscriptions_returns_one_inscription_per_requested_id_in_order() {
+    let server = TestServer::builder().chain(Chain::Regtest).build();
+
+    server.mine_blocks(2);
+
+    let txid = server.core.broadcast_tx(TransactionTemplate {
+      inputs: &[(1, 0, 0, inscription("text/plain", "foo").to_witness())],
+      ..default()
+    });
+
+    server.mine_blocks(1);
+
+    let a = InscriptionId { txid, index: 0 };
+
+    let txid = server.core.broadcast_tx(TransactionTemplate {
+      inputs: &[(2, 0, 0, inscription("text/plain", "bar").to_witness())],
+      ..default()
+    });
+
+    server.mine_blocks(1);
+
+    let b = InscriptionId { txid, index: 0 };
+
+    let inscription_a = server.get_json::<api::Inscription>(format!("/inscription/{a}"));
+    let inscription_b = server.get_json::<api::Inscription>(format!("/inscription/{b}"));
+
+    pretty_assert_eq!(
+      server.post_json::<Vec<api::Inscription>>("inscriptions", &vec![b, a, a, b]),
+      vec![
+        inscription_b.clone(),
+        inscription_a.clone(),
+        inscription_a,
+        inscription_b,
+      ],
     );
   }
 }

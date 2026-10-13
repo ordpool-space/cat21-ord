@@ -112,6 +112,12 @@ pub struct Server {
   pub(crate) disable_json_api: bool,
   #[arg(
     long,
+    env = "ORD_SERVER_JSON_BODY_LIMIT",
+    help = "Limit JSON API request bodies to <JSON_BODY_LIMIT> bytes. `ord wallet` sends all wallet outputs in a single request, so a low limit breaks large wallets. [default: 33554432]"
+  )]
+  pub(crate) json_body_limit: Option<usize>,
+  #[arg(
+    long,
     help = "Listen on <HTTP_PORT> for incoming HTTP requests. [default: 80]"
   )]
   pub(crate) http_port: Option<u16>,
@@ -154,6 +160,8 @@ impl Server {
     handle: Handle<SocketAddr>,
     http_port_tx: Option<std::sync::mpsc::Sender<u16>>,
   ) -> SubcommandResult {
+    let json_body_limit = self.json_body_limit()?;
+
     settings.runtime()?.block_on(async {
       let index_clone = index.clone();
       let integration_test = settings.integration_test();
@@ -199,7 +207,7 @@ impl Server {
       });
 
       let body_limit = if server_config.json_api_enabled {
-        DefaultBodyLimit::max(32 * MEBIBYTE)
+        DefaultBodyLimit::max(json_body_limit)
       } else {
         DefaultBodyLimit::max(2 * MEBIBYTE)
       };
@@ -533,6 +541,14 @@ impl Server {
     } else {
       None
     }
+  }
+
+  fn json_body_limit(&self) -> Result<usize> {
+    let limit = self.json_body_limit.unwrap_or(32 * MEBIBYTE);
+
+    ensure!(limit > 0, "--json-body-limit must be greater than zero");
+
+    Ok(limit)
   }
 
   fn https_port(&self) -> Option<u16> {

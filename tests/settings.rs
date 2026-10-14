@@ -6,6 +6,7 @@ fn default() {
     .integration_test(false)
     .stdout_regex(
       r#"\{
+  "batch_limit": null,
   "bitcoin_data_dir": ".*(Bitcoin|bitcoin)",
   "bitcoin_rpc_limit": 12,
   "bitcoin_rpc_password": null,
@@ -23,6 +24,7 @@ fn default() {
   "index": ".*index\.redb",
   "index_addresses": false,
   "index_cache_size": \d+,
+  "index_cat21": false,
   "index_runes": false,
   "index_sats": false,
   "index_transactions": false,

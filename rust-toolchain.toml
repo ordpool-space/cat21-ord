@@ -1,0 +1,10 @@
+[toolchain]
+# Pin the Rust toolchain so a new stable release doesn't
+# spontaneously break CI by activating stricter clippy lints on
+# existing upstream code. Bump this deliberately, not by accident.
+#
+# 2026-07-17: pinned to 1.97.0 (the release that added
+# `clippy::useless_borrows_in_formatting`; we already carry the
+# corresponding fix in src/index/fetcher.rs).
+channel = "1.97.0"
+components = ["rustfmt", "clippy"]

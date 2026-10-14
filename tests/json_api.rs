@@ -23,6 +23,7 @@ fn get_sat_without_sat_index() {
   pretty_assert_eq!(
     sat_json,
     api::Sat {
+      cat_numbers: None,
       address: None,
       number: 2099999997689999,
       decimal: "6929999.0".into(),
@@ -65,6 +66,7 @@ fn get_sat_with_inscription_and_sat_index() {
   pretty_assert_eq!(
     sat_json,
     api::Sat {
+      cat_numbers: None,
       address: None,
       number: 50 * COIN_VALUE,
       decimal: "1.0".into(),
@@ -124,6 +126,7 @@ fn get_sat_with_inscription_on_common_sat_and_more_inscriptions() {
   pretty_assert_eq!(
     sat_json,
     api::Sat {
+      cat_numbers: None,
       address: None,
       number: 3 * 50 * COIN_VALUE + 1,
       decimal: "3.1".into(),
@@ -163,6 +166,15 @@ fn get_inscription() {
   assert_regex_match!(inscription_json.address.unwrap(), r"bc1p.*");
   inscription_json.address = None;
 
+  // CAT-21 😺 — block_hash carries the mining block's hash. The struct
+  // comparison below echoes it, so pin the value here: it must equal the
+  // canonical hash of the reveal height (2) from mockcore, not merely match a
+  // hex shape. A bug returning a valid-but-wrong hash would pass a regex.
+  assert_eq!(
+    inscription_json.block_hash,
+    Some(ord.block_hash(2).to_string())
+  );
+
   pretty_assert_eq!(
     inscription_json,
     api::Inscription {
@@ -186,9 +198,125 @@ fn get_inscription() {
       sat: Some(Sat(50 * COIN_VALUE)),
       satpoint: SatPoint::from_str(&format!("{}:{}:{}", reveal, 0, 0)).unwrap(),
       timestamp: 2,
-      metaprotocol: None
+      metaprotocol: None,
+      weight: inscription_json.weight,                 // CAT-21 😺
+      size: inscription_json.size,                     // CAT-21 😺
+      minted_by: inscription_json.minted_by.clone(),   // CAT-21 😺
+      block_hash: inscription_json.block_hash.clone(), // CAT-21 😺
     }
   )
+}
+
+// CAT-21 😺 — /cat21/alive is the liveness endpoint the external monitor reads.
+// It answers JSON without content negotiation and reports the chain tip plus
+// inscription #0's id, resolved through the same per-cat path /cat/0 uses.
+#[test]
+fn cat21_alive_reports_tip_and_genesis() {
+  let core = mockcore::spawn();
+
+  let ord = TestServer::spawn_with_server_args(&core, &["--index-sats"], &[]);
+
+  create_wallet(&core, &ord);
+
+  let (inscription_id, _reveal) = inscribe(&core, &ord);
+
+  let response = ord.json_request("/cat21/alive");
+
+  assert_eq!(response.status(), StatusCode::OK);
+
+  let alive: api::Cat21Alive = serde_json::from_str(&response.text().unwrap()).unwrap();
+
+  // The reveal lands at height 2 in this harness (get_inscription pins the same
+  // value), and it is the tip.
+  assert_eq!(alive.height, 2);
+  // genesis is inscription #0's id, proving the per-cat lookup answered.
+  assert_eq!(alive.genesis, inscription_id.to_string());
+}
+
+// CAT-21 😺 — --disable-html refuses every request that would render a template
+// (crawlers) with 406, before route matching and any index read, while letting
+// JSON consumers and the /cat21/alive probe through. The 406 is pre-index, so
+// these assertions need no synced inscriptions.
+#[test]
+fn disable_html_gate_refuses_non_json() {
+  let core = mockcore::spawn();
+
+  let ord = TestServer::spawn_with_server_args(&core, &[], &["--disable-html"]);
+
+  // A browser Accept on any HTML path is refused.
+  for path in ["/", "/cat/0", "/blocks", "/inscription/0"] {
+    assert_eq!(
+      ord
+        .request_with_accept(path, "text/html,application/xhtml+xml")
+        .status(),
+      StatusCode::NOT_ACCEPTABLE,
+      "browser request to {path} should be 406",
+    );
+  }
+
+  // A JSON consumer is let through the gate (404 here on an empty index, but
+  // never 406 — the gate did not block it).
+  assert_ne!(
+    ord
+      .request_with_accept("/cat/0", "application/json")
+      .status(),
+    StatusCode::NOT_ACCEPTABLE,
+  );
+
+  // These explorer routes ignore Accept and render HTML unconditionally, so a
+  // JSON Accept must NOT slip them through the gate (regression for the
+  // home / clock / parents --disable-html bypass).
+  for path in [
+    "/",
+    "/clock",
+    "/parents/0000000000000000000000000000000000000000000000000000000000000000i0",
+  ] {
+    assert_eq!(
+      ord.request_with_accept(path, "application/json").status(),
+      StatusCode::NOT_ACCEPTABLE,
+      "JSON-Accept request to HTML-only {path} should be 406",
+    );
+  }
+
+  // The JSON recursive parents endpoint (/r/parents/...) is a genuine JSON
+  // route and must still pass the gate (never 406) — it does not match the
+  // /parents/ HTML prefix blocked above.
+  assert_ne!(
+    ord
+      .request_with_accept(
+        "/r/parents/0000000000000000000000000000000000000000000000000000000000000000i0",
+        "application/json",
+      )
+      .status(),
+    StatusCode::NOT_ACCEPTABLE,
+  );
+
+  // /cat21/alive is the one exemption: it answers regardless of Accept, since
+  // the external monitor cannot set request headers below the paid tier.
+  assert_ne!(
+    ord
+      .request_with_accept("/cat21/alive", "text/html")
+      .status(),
+    StatusCode::NOT_ACCEPTABLE,
+  );
+  assert_ne!(
+    ord.request_with_accept("/cat21/alive", "*/*").status(),
+    StatusCode::NOT_ACCEPTABLE,
+  );
+
+  // /robots.txt is served (200, Disallow-all) even with HTML off, so
+  // robots.txt-respecting crawlers read the disallow and leave.
+  let robots = ord.request_with_accept("/robots.txt", "text/html");
+  assert_eq!(
+    robots.status(),
+    StatusCode::OK,
+    "robots.txt should be served, not gated",
+  );
+  assert_eq!(
+    robots.text().unwrap(),
+    "User-agent: *\nDisallow: /\n",
+    "robots.txt should Disallow everything",
+  );
 }
 
 #[test]
@@ -250,7 +378,11 @@ fn get_inscription_with_metaprotocol_and_properties() {
       sat: Some(Sat(50 * COIN_VALUE)),
       satpoint: SatPoint::from_str(&format!("{}:{}:{}", output.reveal, 0, 0)).unwrap(),
       timestamp: 2,
-      metaprotocol: Some("foo".to_string())
+      metaprotocol: Some("foo".to_string()),
+      weight: inscription_json.weight,                 // CAT-21 😺
+      size: inscription_json.size,                     // CAT-21 😺
+      minted_by: inscription_json.minted_by.clone(),   // CAT-21 😺
+      block_hash: inscription_json.block_hash.clone(), // CAT-21 😺
     }
   );
 }

@@ -119,7 +119,26 @@ pub struct Inscription {
   pub satpoint: SatPoint,
   pub timestamp: i64,
   pub value: Option<u64>,
+  pub weight: u64,               // CAT-21 😺
+  pub size: u64,                 // CAT-21 😺
+  pub minted_by: Option<String>, // CAT-21 😺 — address from mint tx's first output
+  // CAT-21 😺 — hash of the block that mined this cat. A client holding
+  // txid + block_hash + fee + weight can render the cat itself; without it
+  // every consumer needs a second /block/<height> call for the hash alone.
+  pub block_hash: Option<String>,
 }
+
+// CAT-21 😺 - START
+/// Liveness payload. Both fields are read from the index per request, so a
+/// monitor asserting either one is testing ord rather than the web server.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Cat21Alive {
+  /// Chain tip as the index sees it.
+  pub height: u32,
+  /// Inscription id of cat #0, proving the per-cat lookup path answers.
+  pub genesis: String,
+}
+// CAT-21 😺 - END
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct InscriptionRecursive {
@@ -155,6 +174,7 @@ pub struct RelativeInscriptionRecursive {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Inscriptions {
   pub ids: Vec<InscriptionId>,
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub more: bool,
   pub page_index: u32,
 }
@@ -217,6 +237,7 @@ impl Output {
 pub struct Sat {
   pub address: Option<String>,
   pub block: u32,
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub charms: Vec<Charm>,
   pub cycle: u32,
   pub decimal: String,
@@ -240,6 +261,7 @@ pub struct SatInscription {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SatInscriptions {
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub ids: Vec<InscriptionId>,
   pub more: bool,
   pub page: u64,
@@ -249,6 +271,7 @@ pub struct SatInscriptions {
 pub struct AddressInfo {
   pub outputs: Vec<OutPoint>,
   pub inscriptions: Option<Vec<InscriptionId>>,
+  pub cat_numbers: Option<Vec<i32>>, // CAT-21 😺
   pub sat_balance: u64,
   pub runes_balances: Option<Vec<(SpacedRune, Decimal, Option<char>)>>,
 }

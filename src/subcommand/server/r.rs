@@ -481,6 +481,7 @@ pub(super) async fn parents_paginated(
     Ok(
       Json(api::Inscriptions {
         ids,
+        cat_numbers: None, // CAT-21 😺: not resolved for recursive endpoints
         more,
         page_index,
       })
@@ -530,7 +531,12 @@ pub(super) async fn sat_paginated(
 
     let (ids, more) = index.get_inscription_ids_by_sat_paginated(Sat(sat), 100, page)?;
 
-    Ok(Json(api::SatInscriptions { ids, more, page }))
+    Ok(Json(api::SatInscriptions {
+      cat_numbers: None, // CAT-21 😺: not resolved for recursive endpoints
+      ids,
+      more,
+      page,
+    }))
   })
 }
 

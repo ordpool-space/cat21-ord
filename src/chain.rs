@@ -57,6 +57,18 @@ impl Chain {
     Rune::first_rune_height(self.into())
   }
 
+  // CAT-21 😺 - START: genesis cat block (first nLockTime=21 tx in Bitcoin history)
+  pub(crate) fn first_cat21_height(self) -> u32 {
+    match self {
+      Self::Mainnet => 815855,
+      Self::Regtest => 0,
+      Self::Signet => 0,
+      Self::Testnet => 0,
+      Self::Testnet4 => 0,
+    }
+  }
+  // CAT-21 😺 - END
+
   pub(crate) fn jubilee_height(self) -> u32 {
     match self {
       Self::Mainnet => 824544,
